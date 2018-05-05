@@ -4,7 +4,7 @@
 #
 Name     : qtremoteobjects
 Version  : 5.10.1
-Release  : 3
+Release  : 4
 URL      : http://download.qt.io/official_releases/qt/5.10/5.10.1/submodules/qtremoteobjects-everywhere-src-5.10.1.tar.xz
 Source0  : http://download.qt.io/official_releases/qt/5.10/5.10.1/submodules/qtremoteobjects-everywhere-src-5.10.1.tar.xz
 Summary  : No detailed summary available
@@ -44,6 +44,14 @@ Provides: qtremoteobjects-devel
 dev components for the qtremoteobjects package.
 
 
+%package extras
+Summary: extras components for the qtremoteobjects package.
+Group: Default
+
+%description extras
+extras components for the qtremoteobjects package.
+
+
 %package lib
 Summary: lib components for the qtremoteobjects package.
 Group: Libraries
@@ -73,7 +81,7 @@ make INSTALL_ROOT=%{buildroot} install
 
 %files bin
 %defattr(-,root,root,-)
-/usr/bin/repc
+%exclude /usr/bin/repc
 
 %files dev
 %defattr(-,root,root,-)
@@ -158,6 +166,10 @@ make INSTALL_ROOT=%{buildroot} install
 /usr/lib64/qt5/mkspecs/modules/qt_lib_remoteobjects_private.pri
 /usr/lib64/qt5/mkspecs/modules/qt_lib_repparser.pri
 /usr/lib64/qt5/mkspecs/modules/qt_lib_repparser_private.pri
+
+%files extras
+%defattr(-,root,root,-)
+/usr/bin/repc
 
 %files lib
 %defattr(-,root,root,-)
