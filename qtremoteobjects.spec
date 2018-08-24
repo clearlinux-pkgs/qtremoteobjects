@@ -4,16 +4,16 @@
 #
 Name     : qtremoteobjects
 Version  : 5.11.1
-Release  : 9
+Release  : 10
 URL      : http://download.qt.io/official_releases/qt/5.11/5.11.1/submodules/qtremoteobjects-everywhere-src-5.11.1.tar.xz
 Source0  : http://download.qt.io/official_releases/qt/5.11/5.11.1/submodules/qtremoteobjects-everywhere-src-5.11.1.tar.xz
 Summary  : No detailed summary available
 Group    : Development/Tools
 License  : GPL-2.0 GPL-3.0 LGPL-3.0
-Requires: qtremoteobjects-bin
 Requires: qtremoteobjects-lib
 Requires: qtremoteobjects-license
-BuildRequires : cmake
+BuildRequires : buildreq-cmake
+BuildRequires : buildreq-qmake
 BuildRequires : pkgconfig(Qt5Core)
 BuildRequires : pkgconfig(Qt5Gui)
 BuildRequires : pkgconfig(Qt5Network)
@@ -21,38 +21,18 @@ BuildRequires : pkgconfig(Qt5Qml)
 BuildRequires : pkgconfig(Qt5Quick)
 BuildRequires : pkgconfig(Qt5Test)
 BuildRequires : pkgconfig(Qt5Widgets)
-BuildRequires : qtbase-dev
-BuildRequires : qtbase-extras
 
 %description
-Put all snipplets into this folder.
-
-%package bin
-Summary: bin components for the qtremoteobjects package.
-Group: Binaries
-Requires: qtremoteobjects-license
-
-%description bin
-bin components for the qtremoteobjects package.
-
+Put all documentation images into this folder.
 
 %package dev
 Summary: dev components for the qtremoteobjects package.
 Group: Development
 Requires: qtremoteobjects-lib
-Requires: qtremoteobjects-bin
 Provides: qtremoteobjects-devel
 
 %description dev
 dev components for the qtremoteobjects package.
-
-
-%package extras
-Summary: extras components for the qtremoteobjects package.
-Group: Default
-
-%description extras
-extras components for the qtremoteobjects package.
 
 
 %package lib
@@ -85,25 +65,22 @@ test -r config.log && cat config.log
 make  %{?_smp_mflags}
 
 %install
-export SOURCE_DATE_EPOCH=1530976179
+export SOURCE_DATE_EPOCH=1535152722
 rm -rf %{buildroot}
 mkdir -p %{buildroot}/usr/share/doc/qtremoteobjects
-cp LICENSE.LGPL3 %{buildroot}/usr/share/doc/qtremoteobjects/LICENSE.LGPL3
-cp LICENSE.GPL3-EXCEPT %{buildroot}/usr/share/doc/qtremoteobjects/LICENSE.GPL3-EXCEPT
 cp LICENSE.GPL2 %{buildroot}/usr/share/doc/qtremoteobjects/LICENSE.GPL2
 cp LICENSE.GPL3 %{buildroot}/usr/share/doc/qtremoteobjects/LICENSE.GPL3
+cp LICENSE.GPL3-EXCEPT %{buildroot}/usr/share/doc/qtremoteobjects/LICENSE.GPL3-EXCEPT
+cp LICENSE.LGPL3 %{buildroot}/usr/share/doc/qtremoteobjects/LICENSE.LGPL3
 cp tools/repc/moc_copy/util/licenseheader.txt %{buildroot}/usr/share/doc/qtremoteobjects/tools_repc_moc_copy_util_licenseheader.txt
 %make_install
 
 %files
 %defattr(-,root,root,-)
 
-%files bin
-%defattr(-,root,root,-)
-%exclude /usr/bin/repc
-
 %files dev
 %defattr(-,root,root,-)
+/usr/bin/repc
 /usr/include/qt5/QtRemoteObjects/5.11.1/QtRemoteObjects/private/qconnection_local_backend_p.h
 /usr/include/qt5/QtRemoteObjects/5.11.1/QtRemoteObjects/private/qconnection_qnx_backend_p.h
 /usr/include/qt5/QtRemoteObjects/5.11.1/QtRemoteObjects/private/qconnection_qnx_global_p.h
@@ -182,10 +159,6 @@ cp tools/repc/moc_copy/util/licenseheader.txt %{buildroot}/usr/share/doc/qtremot
 /usr/lib64/qt5/mkspecs/modules/qt_lib_remoteobjects_private.pri
 /usr/lib64/qt5/mkspecs/modules/qt_lib_repparser.pri
 /usr/lib64/qt5/mkspecs/modules/qt_lib_repparser_private.pri
-
-%files extras
-%defattr(-,root,root,-)
-/usr/bin/repc
 
 %files lib
 %defattr(-,root,root,-)
