@@ -1,5 +1,5 @@
 PKG_NAME := qtremoteobjects
-URL = http://download.qt.io/official_releases/qt/5.11/5.11.1/submodules/qtremoteobjects-everywhere-src-5.11.1.tar.xz
+URL = http://download.qt.io/official_releases/qt/5.11/5.11.2/submodules/qtremoteobjects-everywhere-src-5.11.2.tar.xz
 ARCHIVES = 
 
 include ../common/Makefile.common
