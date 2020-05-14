@@ -6,7 +6,8 @@ libQt5RemoteObjects.so.5:Qt_5.11
 libQt5RemoteObjects.so.5:Qt_5.12
 libQt5RemoteObjects.so.5:Qt_5.13
 libQt5RemoteObjects.so.5:Qt_5.14
-libQt5RemoteObjects.so.5:Qt_5.14.2_PRIVATE_API
+libQt5RemoteObjects.so.5:Qt_5.15
+libQt5RemoteObjects.so.5:Qt_5.15.0_PRIVATE_API
 libQt5RemoteObjects.so.5:Qt_5.2
 libQt5RemoteObjects.so.5:Qt_5.3
 libQt5RemoteObjects.so.5:Qt_5.4
@@ -50,6 +51,7 @@ libQt5RemoteObjects.so.5:_ZN15QtRemoteObjects20copyStoredPropertiesEPK11QMetaObj
 libQt5RemoteObjects.so.5:_ZN17QRemoteObjectHost10setHostUrlERK4QUrlN21QRemoteObjectHostBase14AllowedSchemasE
 libQt5RemoteObjects.so.5:_ZN17QRemoteObjectHost11qt_metacallEN11QMetaObject4CallEiPPv
 libQt5RemoteObjects.so.5:_ZN17QRemoteObjectHost11qt_metacastEPKc
+libQt5RemoteObjects.so.5:_ZN17QRemoteObjectHost14hostUrlChangedEv
 libQt5RemoteObjects.so.5:_ZN17QRemoteObjectHostC1EP7QObject
 libQt5RemoteObjects.so.5:_ZN17QRemoteObjectHostC1ER24QRemoteObjectHostPrivateP7QObject
 libQt5RemoteObjects.so.5:_ZN17QRemoteObjectHostC1ERK4QUrlP7QObject
@@ -103,6 +105,7 @@ libQt5RemoteObjects.so.5:_ZN20QRemoteObjectReplica13waitForSourceEi
 libQt5RemoteObjects.so.5:_ZN20QRemoteObjectReplica14initializeNodeEP17QRemoteObjectNodeRK7QString
 libQt5RemoteObjects.so.5:_ZN20QRemoteObjectReplica4sendEN11QMetaObject4CallEiRK5QListI8QVariantE
 libQt5RemoteObjects.so.5:_ZN20QRemoteObjectReplica7setNodeEP17QRemoteObjectNode
+libQt5RemoteObjects.so.5:_ZN20QRemoteObjectReplica8notifiedEv
 libQt5RemoteObjects.so.5:_ZN20QRemoteObjectReplica8setChildEiRK8QVariant
 libQt5RemoteObjects.so.5:_ZN20QRemoteObjectReplicaC1ENS_15ConstructorTypeE
 libQt5RemoteObjects.so.5:_ZN20QRemoteObjectReplicaC1ER14QObjectPrivateP7QObject
