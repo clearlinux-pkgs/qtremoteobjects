@@ -7,6 +7,10 @@ Jani Heikkinen (1):
 Michael Brasser (1):
       Improve stability of tst_proxy
 
+Tarja Sundqvist (2):
+      Update commercial license headers
+      Revert "Update commercial license headers"
+
 diff --git a/tests/auto/proxy/tst_proxy.cpp b/tests/auto/proxy/tst_proxy.cpp
 index aa914bc..c803e49 100644
 --- a/tests/auto/proxy/tst_proxy.cpp
