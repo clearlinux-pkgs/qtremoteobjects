@@ -1,23 +1,2399 @@
 Antti Kokko (1):
       Add changes file for Qt 5.15.2
 
-Jani Heikkinen (1):
+Brett Stottlemyer (2):
+      Attempt to fix flaky test
+      ExternalIODevice fixes
+
+Jani Heikkinen (2):
+      Bump version
       Bump version
 
 Michael Brasser (1):
       Improve stability of tst_proxy
 
-Tarja Sundqvist (2):
+Mårten Nordheim (2):
+      Regenerate certificates to match new macOS 10.15 restrictions
+      Document the QtRemoteObjects namespace
+
+Sona Kurazyan (11):
+      tst_external_IODevice: skip the test for macOS 10.15
+      Migrate from old signal/slot connection syntax
+      Document the QtRemoteObjects::InitialAction enum and its usage
+      Fix prefetching data for QAIM when no roles hint is provided
+      Migrate from old signal/slot connection syntax (part 2)
+      Try to stabilize flaky tests
+      Add a helper class for waiting for model changes in tests
+      Refactor the TestModelView test
+      Simplify the WaitForDataChanged test-helper class
+      Fix an error in TestModelView::testDataRemoval test
+      Simplify the FetchData test-helper class
+
+Tarja Sundqvist (3):
       Update commercial license headers
       Revert "Update commercial license headers"
+      Merge remote-tracking branch 'origin/tqtc/lts-5.15.4' into tqtc/lts-5.15-opensource
 
+diff --git a/examples/remoteobjects/cppclient/main.cpp b/examples/remoteobjects/cppclient/main.cpp
+index 96bcc46..08e36b6 100644
+--- a/examples/remoteobjects/cppclient/main.cpp
++++ b/examples/remoteobjects/cppclient/main.cpp
+@@ -62,10 +62,10 @@ public:
+         ptr1.reset(m_client.acquire< MinuteTimerReplica >());
+         ptr2.reset(m_client.acquire< MinuteTimerReplica >());
+         ptr3.reset(m_client.acquire< MinuteTimerReplica >());
+-        QTimer::singleShot(0,this,SLOT(clear()));
+-        QTimer::singleShot(1,this,SLOT(clear()));
+-        QTimer::singleShot(10000,this,SLOT(clear()));
+-        QTimer::singleShot(11000,this,SLOT(clear()));
++        QTimer::singleShot(0, this, &tester::clear);
++        QTimer::singleShot(1, this, &tester::clear);
++        QTimer::singleShot(10000, this, &tester::clear);
++        QTimer::singleShot(11000, this, &tester::clear);
+     }
+ public slots:
+     void clear()
+diff --git a/examples/remoteobjects/modelviewserver/main.cpp b/examples/remoteobjects/modelviewserver/main.cpp
+index 55c59ab..9f386f7 100644
+--- a/examples/remoteobjects/modelviewserver/main.cpp
++++ b/examples/remoteobjects/modelviewserver/main.cpp
+@@ -157,11 +157,11 @@ int main(int argc, char *argv[])
+     view.show();
+     TimerHandler handler;
+     handler.model = &sourceModel;
+-    QTimer::singleShot(5000, &handler, SLOT(changeData()));
+-    QTimer::singleShot(10000, &handler, SLOT(insertData()));
+-    QTimer::singleShot(11000, &handler, SLOT(changeFlags()));
+-    QTimer::singleShot(12000, &handler, SLOT(removeData()));
+-    QTimer::singleShot(13000, &handler, SLOT(moveData()));
++    QTimer::singleShot(5000, &handler, &TimerHandler::changeData);
++    QTimer::singleShot(10000, &handler, &TimerHandler::insertData);
++    QTimer::singleShot(11000, &handler, &TimerHandler::changeFlags);
++    QTimer::singleShot(12000, &handler, &TimerHandler::removeData);
++    QTimer::singleShot(13000, &handler, &TimerHandler::moveData);
+ 
+     return app.exec();
+ }
+diff --git a/examples/remoteobjects/plugins/plugin.cpp b/examples/remoteobjects/plugins/plugin.cpp
+index 5ee35af..bf84e7d 100644
+--- a/examples/remoteobjects/plugins/plugin.cpp
++++ b/examples/remoteobjects/plugins/plugin.cpp
+@@ -76,11 +76,11 @@ public:
+     TimeModel(QObject *parent = nullptr) : QObject(parent), d_ptr(nullptr)
+     {
+         d_ptr.reset(m_client.acquire< MinuteTimerReplica >());
+-        connect(d_ptr.data(), SIGNAL(hourChanged(int)), this, SIGNAL(timeChanged()));
+-        connect(d_ptr.data(), SIGNAL(minuteChanged(int)), this, SIGNAL(timeChanged()));
+-        connect(d_ptr.data(), SIGNAL(timeChanged()), this, SIGNAL(timeChanged()));
+-        connect(d_ptr.data(), SIGNAL(timeChanged2(QTime)), this, SLOT(test(QTime)));
+-        connect(d_ptr.data(), SIGNAL(sendCustom(PresetInfo)), this, SLOT(testCustom(PresetInfo)));
++        connect(d_ptr.data(), &MinuteTimerReplica::hourChanged, this, &TimeModel::timeChanged);
++        connect(d_ptr.data(), &MinuteTimerReplica::minuteChanged, this, &TimeModel::timeChanged);
++        connect(d_ptr.data(), &MinuteTimerReplica::timeChanged, this, &TimeModel::timeChanged);
++        connect(d_ptr.data(), &MinuteTimerReplica::timeChanged2, this, &TimeModel::test);
++        connect(d_ptr.data(), &MinuteTimerReplica::sendCustom, this, &TimeModel::testCustom);
+     }
+ 
+     ~TimeModel() override
+diff --git a/examples/remoteobjects/simpleswitch/directconnectclient/client.cpp b/examples/remoteobjects/simpleswitch/directconnectclient/client.cpp
+index 81cbf0e..a8e3133 100644
+--- a/examples/remoteobjects/simpleswitch/directconnectclient/client.cpp
++++ b/examples/remoteobjects/simpleswitch/directconnectclient/client.cpp
+@@ -69,12 +69,12 @@ Client::~Client()
+ 
+ void Client::initConnections(void)
+ {
+-        // initialize connections between signals and slots
++    // initialize connections between signals and slots
+ 
+-       // connect source replica signal currStateChanged() with client's recSwitchState() slot to receive source's current state
+-        QObject::connect(reptr.data(), SIGNAL(currStateChanged(bool)), this, SLOT(recSwitchState_slot(bool)));
+-       // connect client's echoSwitchState(..) signal with replica's server_slot(..) to echo back received state
+-        QObject::connect(this, SIGNAL(echoSwitchState(bool)),reptr.data(), SLOT(server_slot(bool)));
++    // connect source replica signal currStateChanged() with client's recSwitchState() slot to receive source's current state
++    QObject::connect(reptr.data(), &SimpleSwitchReplica::currStateChanged, this, &Client::recSwitchState_slot);
++    // connect client's echoSwitchState(..) signal with replica's server_slot(..) to echo back received state
++    QObject::connect(this, &Client::echoSwitchState, reptr.data(), &SimpleSwitchReplica::server_slot);
+ }
+ 
+ void Client::recSwitchState_slot(bool value)
+diff --git a/examples/remoteobjects/simpleswitch/directconnectdynamicclient/dynamicclient.cpp b/examples/remoteobjects/simpleswitch/directconnectdynamicclient/dynamicclient.cpp
+index 11f64ab..88a3fd8 100644
+--- a/examples/remoteobjects/simpleswitch/directconnectdynamicclient/dynamicclient.cpp
++++ b/examples/remoteobjects/simpleswitch/directconnectdynamicclient/dynamicclient.cpp
+@@ -56,7 +56,8 @@ DynamicClient::DynamicClient(QSharedPointer<QRemoteObjectDynamicReplica> ptr) :
+     QObject(nullptr), clientSwitchState(false), reptr(ptr)
+ {
+     //connect signal for replica valid changed with signal slot initialization
+-    QObject::connect(reptr.data(), SIGNAL(initialized()), this, SLOT(initConnection_slot()));
++    QObject::connect(reptr.data(), &QRemoteObjectDynamicReplica::initialized, this,
++                     &DynamicClient::initConnection_slot);
+ }
+ 
+ //destructor
+diff --git a/examples/remoteobjects/simpleswitch/directconnectserver/simpleswitch.cpp b/examples/remoteobjects/simpleswitch/directconnectserver/simpleswitch.cpp
+index a5ab3e0..5418ce1 100644
+--- a/examples/remoteobjects/simpleswitch/directconnectserver/simpleswitch.cpp
++++ b/examples/remoteobjects/simpleswitch/directconnectserver/simpleswitch.cpp
+@@ -54,7 +54,7 @@
+ SimpleSwitch::SimpleSwitch(QObject *parent) : SimpleSwitchSimpleSource(parent)
+ {
+     stateChangeTimer = new QTimer(this); // Initialize timer
+-    QObject::connect(stateChangeTimer, SIGNAL(timeout()), this, SLOT(timeout_slot())); // connect timeout() signal from stateChangeTimer to timeout_slot() of simpleSwitch
++    QObject::connect(stateChangeTimer, &QTimer::timeout, this, &SimpleSwitch::timeout_slot); // connect timeout() signal from stateChangeTimer to timeout_slot() of simpleSwitch
+     stateChangeTimer->start(2000); // Start timer and set timout to 2 seconds
+     qDebug() << "Source Node Started";
+ }
+diff --git a/examples/remoteobjects/simpleswitch/registryconnectedclient/dynamicclient.cpp b/examples/remoteobjects/simpleswitch/registryconnectedclient/dynamicclient.cpp
+index 11f64ab..88a3fd8 100644
+--- a/examples/remoteobjects/simpleswitch/registryconnectedclient/dynamicclient.cpp
++++ b/examples/remoteobjects/simpleswitch/registryconnectedclient/dynamicclient.cpp
+@@ -56,7 +56,8 @@ DynamicClient::DynamicClient(QSharedPointer<QRemoteObjectDynamicReplica> ptr) :
+     QObject(nullptr), clientSwitchState(false), reptr(ptr)
+ {
+     //connect signal for replica valid changed with signal slot initialization
+-    QObject::connect(reptr.data(), SIGNAL(initialized()), this, SLOT(initConnection_slot()));
++    QObject::connect(reptr.data(), &QRemoteObjectDynamicReplica::initialized, this,
++                     &DynamicClient::initConnection_slot);
+ }
+ 
+ //destructor
+diff --git a/examples/remoteobjects/simpleswitch/registryconnectedserver/simpleswitch.cpp b/examples/remoteobjects/simpleswitch/registryconnectedserver/simpleswitch.cpp
+index a5ab3e0..5418ce1 100644
+--- a/examples/remoteobjects/simpleswitch/registryconnectedserver/simpleswitch.cpp
++++ b/examples/remoteobjects/simpleswitch/registryconnectedserver/simpleswitch.cpp
+@@ -54,7 +54,7 @@
+ SimpleSwitch::SimpleSwitch(QObject *parent) : SimpleSwitchSimpleSource(parent)
+ {
+     stateChangeTimer = new QTimer(this); // Initialize timer
+-    QObject::connect(stateChangeTimer, SIGNAL(timeout()), this, SLOT(timeout_slot())); // connect timeout() signal from stateChangeTimer to timeout_slot() of simpleSwitch
++    QObject::connect(stateChangeTimer, &QTimer::timeout, this, &SimpleSwitch::timeout_slot); // connect timeout() signal from stateChangeTimer to timeout_slot() of simpleSwitch
+     stateChangeTimer->start(2000); // Start timer and set timout to 2 seconds
+     qDebug() << "Source Node Started";
+ }
+diff --git a/examples/remoteobjects/ssl/sslcppclient/main.cpp b/examples/remoteobjects/ssl/sslcppclient/main.cpp
+index e468b57..a4f6b1c 100644
+--- a/examples/remoteobjects/ssl/sslcppclient/main.cpp
++++ b/examples/remoteobjects/ssl/sslcppclient/main.cpp
+@@ -75,10 +75,10 @@ public:
+         ptr1.reset(m_client.acquire< MinuteTimerReplica >());
+         ptr2.reset(m_client.acquire< MinuteTimerReplica >());
+         ptr3.reset(m_client.acquire< MinuteTimerReplica >());
+-        QTimer::singleShot(0,this,SLOT(clear()));
+-        QTimer::singleShot(1,this,SLOT(clear()));
+-        QTimer::singleShot(10000,this,SLOT(clear()));
+-        QTimer::singleShot(11000,this,SLOT(clear()));
++        QTimer::singleShot(0, this, &tester::clear);
++        QTimer::singleShot(1, this, &tester::clear);
++        QTimer::singleShot(10000, this, &tester::clear);
++        QTimer::singleShot(11000, this, &tester::clear);
+     }
+ public slots:
+     void clear()
+diff --git a/examples/remoteobjects/ssl/sslserver/cert/client.crt b/examples/remoteobjects/ssl/sslserver/cert/client.crt
+index e8c8c14..3aa0ff8 100644
+--- a/examples/remoteobjects/ssl/sslserver/cert/client.crt
++++ b/examples/remoteobjects/ssl/sslserver/cert/client.crt
+@@ -1,18 +1,17 @@
+ -----BEGIN CERTIFICATE-----
+-MIIC8jCCAdoCCQDPkkFD8ish3zANBgkqhkiG9w0BAQsFADAxMQswCQYDVQQGEwJV
+-UzEPMA0GA1UECAwGT3JlZ29uMREwDwYDVQQHDAhQb3J0bGFuZDAeFw0xODA3MDMw
+-OTMyNTFaFw0yMzA3MDIwOTMyNTFaMEUxCzAJBgNVBAYTAlVTMQ8wDQYDVQQIDAZP
+-cmVnb24xETAPBgNVBAcMCFBvcnRsYW5kMRIwEAYDVQQDDAkxMjcuMC4wLjEwggEi
+-MA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDexH8hCVisI6sHb7o2nK3kMuwT
+-DEBoQesEqZsfypiwOYkB2OqzW3HmFfDeUVKBGBJk07QPYM1v9ocaEbYFkAOpj1hH
+-Gl02DihWqMqbFdwugV/z6dwo8r7ZOsCYhDeAhtXKbAX2ASGdlHusY9lIHRqGrlm3
+-veHJrdXUAQAYHyI7XrinLV8RNCMDI3CVhcNEOc3C3AyufcXUZ1cEGAYDPXGtwPEd
+-RFQQBbyYSQ4RgR2BlPkPE1VQiE01cDFMF8RNaQL89uhJkMruano+7eTawax1h8q4
+-D2LK9sRPRtz7Zivx3Z2Vk9I7suX9C2RhuSgzHiXWuP7VBVcJiAL/GICoq9bJAgMB
+-AAEwDQYJKoZIhvcNAQELBQADggEBABy/ofQyVtXNZ6thyU+M41m3nb2DFayFimjm
+-wPcbgXR/EPyZrP2I1O8FZh7KlICg97kqPsN4CvVU6n9KVmM3EVzwNcPuwr0ufXHF
+-nq/lrVvy0osNh8KzN8jpHZ8Dsl4XXnXAKh4oxCRVB+R4FVirBTAQiu7OUFk+s7I5
+-hoXI47whP7sOmxB+2YbVFPSTj26pupssMHCDoxAXC36ARH/68itdX2LQ5iLoqzEI
+-PNxuLY3fFEGnu0ymZUMuevIbD4tAZiIlw17gr683pwNCuEvKAyNoehLnknXIILs5
+-pVx3XcS6vw5+IbQb+HdxT/RPm6U4fIZVFdoC2o/x1G8wzPJvW/0=
++MIICrTCCAZUCFHOQggvUf1o8c5i3yNyiGLNcLC4pMA0GCSqGSIb3DQEBCwUAMBIx
++EDAOBgNVBAMMB1F0Uk8gQ0EwHhcNMjEwMjI0MTEzMzU1WhcNMjMwNTMwMTEzMzU1
++WjAUMRIwEAYDVQQDDAkxMjcuMC4wLjEwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAw
++ggEKAoIBAQDbl9iuedw0oSbtpC2m30YdzwRmemijasP9SQGQ6+piUOFUKCZsoGWc
++RcEnLGzC+KJ7FXh8jA1kTXSW6ghqvrUysN8VzjgmcCLFee4JAkCUY8yNrlq13ciR
++19BE09kJdOPZeI57pCSBNA6iy03Q4nc/GJpG63QTqJv/WUUgMek0UsmZIzDcWaqr
++MCMnLMaRi5oKFCnnl8E0XDuRm1nqPAzT+us/4upMv+7Q2xs4QFXbLUpSIToNc1wm
++tP6OAGaYClbJZgZbUNowj0wJeCUAwGGcDpliYj1JB8R015z8Kd8pDCvdD7XL35JR
++rT+eaBFNLUrl30aIl3lWf/buv3OoRmuVAgMBAAEwDQYJKoZIhvcNAQELBQADggEB
++AJjdfuy2pb3KgnpxYiXfKXCqGlN7E1RyoCIsMhldWcxAN5cwIJCrvde5MNI8kDvd
++0SfDpRpCP/hZqpR6DsR9iNYJprXlQNZ7Rs41Eswwlb66DqmBlb5ZQcYl8KsKV5fw
++7PhvLpjC5hEg1OBg1Ooz+aNvI9OJYIRFUJ1smtRzwXWuQd5QoqYVRpzvmrFawnGa
++2NHywiwgKyGvY/y82pPuj1rt0L+bae85cZm32f6gp1me9OuLIqA2G5UafSiigWBY
++YL249Rd4rrT87GAeaiBo8ZxZ8de8O7TOBjSNrfAMySepDWjfFfoNpyp+4foRKmpE
++aZmgGTIj5rfhYh4Gcj1nZBw=
+ -----END CERTIFICATE-----
+diff --git a/examples/remoteobjects/ssl/sslserver/cert/client.key b/examples/remoteobjects/ssl/sslserver/cert/client.key
+index 75e1f43..b3f4f1a 100644
+--- a/examples/remoteobjects/ssl/sslserver/cert/client.key
++++ b/examples/remoteobjects/ssl/sslserver/cert/client.key
+@@ -1,27 +1,27 @@
+ -----BEGIN RSA PRIVATE KEY-----
+-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
+ -----END RSA PRIVATE KEY-----
+diff --git a/examples/remoteobjects/ssl/sslserver/cert/readme b/examples/remoteobjects/ssl/sslserver/cert/readme
+new file mode 100644
+index 0000000..1386169
+--- /dev/null
++++ b/examples/remoteobjects/ssl/sslserver/cert/readme
+@@ -0,0 +1,2 @@
++These files are generated by the script located at tests/auto/external_IODevice/cert/generate.sh 
++
+diff --git a/examples/remoteobjects/ssl/sslserver/cert/rootCA.key b/examples/remoteobjects/ssl/sslserver/cert/rootCA.key
+index 4603898..1647817 100644
+--- a/examples/remoteobjects/ssl/sslserver/cert/rootCA.key
++++ b/examples/remoteobjects/ssl/sslserver/cert/rootCA.key
+@@ -1,27 +1,27 @@
+ -----BEGIN RSA PRIVATE KEY-----
+-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
+ -----END RSA PRIVATE KEY-----
+diff --git a/examples/remoteobjects/ssl/sslserver/cert/rootCA.pem b/examples/remoteobjects/ssl/sslserver/cert/rootCA.pem
+index 6f3f886..7f6cce5 100644
+--- a/examples/remoteobjects/ssl/sslserver/cert/rootCA.pem
++++ b/examples/remoteobjects/ssl/sslserver/cert/rootCA.pem
+@@ -1,20 +1,19 @@
+ -----BEGIN CERTIFICATE-----
+-MIIDODCCAiCgAwIBAgIJAJDf3heNbfP6MA0GCSqGSIb3DQEBCwUAMDExCzAJBgNV
+-BAYTAlVTMQ8wDQYDVQQIDAZPcmVnb24xETAPBgNVBAcMCFBvcnRsYW5kMB4XDTE4
+-MDcwMzA5MzI1MFoXDTIzMDcwMjA5MzI1MFowMTELMAkGA1UEBhMCVVMxDzANBgNV
+-BAgMBk9yZWdvbjERMA8GA1UEBwwIUG9ydGxhbmQwggEiMA0GCSqGSIb3DQEBAQUA
+-A4IBDwAwggEKAoIBAQCcWBhDCDjF4DbJidZnROpkIQGXODbNuLROh47eaw5gjubq
+-6sj+BSne57Mr/ls73FW51Fir2psr/VeYCEP6ggvFUVjxUc72nvEZVq/ZPxw+0VSS
+-PTn1ZPtMOU7AQg7JvtZsSMsTVrS70jKXom7tXAJ/TGKO0PxOiYHjU+iM17j0bUk3
+-kIoB2QJjKuCMIGPXeJmj1UWn/FZZN+TqI9r3bwBq9hhRYeLMBzcq+vjoMZb2kiM+
+-2EcQLp2aJfSgd8sXwdxO+Av+kfMXZtPmCtigBHAh5y0P33rPyyauw3tyV+MwfAMc
+-fxo4KAi8006ziNZK7qheoTC8bJHGawcWLWNuEc2TAgMBAAGjUzBRMB0GA1UdDgQW
+-BBRFDBFImjfGGcuUO2yGvXFtkj+tATAfBgNVHSMEGDAWgBRFDBFImjfGGcuUO2yG
+-vXFtkj+tATAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQCbBnbX
+-ms5mFTaPJislt+8A7c/HKz5S5U2jg4+5Nh7b7szbG3s/AGDuSwEQDRAU5J8gqb1r
+-IkmrkZA3C8mEY/NLzDjbbW+T0z7zlXFXWKZmzhx+ROONys1HGKwNRe/oa9cAJnbv
+-KeMfruIXeSTf6U9tehUdoEk87eTAONm4PtVgE4aenSxaIdT7dXlzYBzhCFzsXH/y
+-VyNQD0wd7u+L6av+zRod7Sz7WU/Lnhi1fQXcFmmAmmmCHyctI0xgwdRB9O80ls8s
+-Ea+0J9Mkt07YTKcG1ZpmJHU915M/aDDpV/2RGcYGLOHOrD1IT8Cl3ZwHGlERI3y6
+-+GFPhQzo4mXu3pdb
++MIIDBTCCAe2gAwIBAgIUV9eILCYaC+qwZHR7OO23uyd2UjwwDQYJKoZIhvcNAQEL
++BQAwEjEQMA4GA1UEAwwHUXRSTyBDQTAeFw0yMTAyMjQxMTMzNTVaFw0yMzA2MTAx
++MTMzNTVaMBIxEDAOBgNVBAMMB1F0Uk8gQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IB
++DwAwggEKAoIBAQC6VWecfBEXp7ZoBOFKLVxmlSU7dl2rM8i5/vk0FtFjbL1Wb4Vz
++IKpSq43E/+oMTTad9AUF389QqpRZCzQRdURVk8Qbqz+XuKidgeQyZZKOH4ABansj
++DHcyUcU2L1zleuh3uJLWKCDRiENCWdPTEZ9NdlqxQn+zo242hmI3kvqwQpgNIC6T
++PLKpLbdauoThG+wYBqhpomq7UxPwMGoj3Gg+ki/Bv/iB05mfhgKVbZZatWMJNPbM
++TNQCHUGN0fd2S1eiCIV9ce44/hbyy47Hjo1cNxnd/ksXwJP/a6r2Xy+1r6lXZyIE
++Ahy0a7nP58R1MKiO8JY68LNiaO16n/JO6RP5AgMBAAGjUzBRMB0GA1UdDgQWBBSu
++ehS/XLejTiDbCddGU2mMZ1t3CjAfBgNVHSMEGDAWgBSuehS/XLejTiDbCddGU2mM
++Z1t3CjAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQB8JzSuhHPK
++cjhLqOHUGMKtKWOd5p9g2D45cAWh6jdzU/AhmslMPbsO5hZkqfE+3xARtcMmQfF2
++k1Qyp3hDTN1ZqHSM6Urq9uR33/wXZbNRUNCD8lAmqKyzF9NF7Q+tmC//IMRtVQhK
++aMN3LciyYGQjT0XhDKFWEz9/AvUQD97mLow2m0/izqE4SI6ekQDNL26IiCWFgFjh
++ScZjcJ1ogluD2a6sEUGywRXLNV/bdSjRgkAbpvJFrok7dDZ8xCNhOg4xJJQJRWm7
++ZusUydiVyfgrFan6MD+EdldRHjAs8S9BJfZ0RTOWnD9V8auKuVomzKDed54QlXXi
++zwowb3Objpqh
+ -----END CERTIFICATE-----
+diff --git a/examples/remoteobjects/ssl/sslserver/cert/rootCA.srl b/examples/remoteobjects/ssl/sslserver/cert/rootCA.srl
+index 8888354..d292c9f 100644
+--- a/examples/remoteobjects/ssl/sslserver/cert/rootCA.srl
++++ b/examples/remoteobjects/ssl/sslserver/cert/rootCA.srl
+@@ -1 +1 @@
+-CF924143F22B21E0
++7390820BD47F5A3C7398B7C8DCA218B35C2C2E29
+diff --git a/examples/remoteobjects/ssl/sslserver/cert/server.crt b/examples/remoteobjects/ssl/sslserver/cert/server.crt
+index 0587867..df9d55c 100644
+--- a/examples/remoteobjects/ssl/sslserver/cert/server.crt
++++ b/examples/remoteobjects/ssl/sslserver/cert/server.crt
+@@ -1,18 +1,19 @@
+ -----BEGIN CERTIFICATE-----
+-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
++sn4Jp5gPPBf7jDFKp8PDdbPmk0qN+Wm8gA==
+ -----END CERTIFICATE-----
+diff --git a/examples/remoteobjects/ssl/sslserver/cert/server.key b/examples/remoteobjects/ssl/sslserver/cert/server.key
+index e9bc3a1..05144f4 100644
+--- a/examples/remoteobjects/ssl/sslserver/cert/server.key
++++ b/examples/remoteobjects/ssl/sslserver/cert/server.key
+@@ -1,27 +1,27 @@
+ -----BEGIN RSA PRIVATE KEY-----
+-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
+ -----END RSA PRIVATE KEY-----
+diff --git a/examples/remoteobjects/websockets/common/cert/client.crt b/examples/remoteobjects/websockets/common/cert/client.crt
+index e8c8c14..3aa0ff8 100644
+--- a/examples/remoteobjects/websockets/common/cert/client.crt
++++ b/examples/remoteobjects/websockets/common/cert/client.crt
+@@ -1,18 +1,17 @@
+ -----BEGIN CERTIFICATE-----
+-MIIC8jCCAdoCCQDPkkFD8ish3zANBgkqhkiG9w0BAQsFADAxMQswCQYDVQQGEwJV
+-UzEPMA0GA1UECAwGT3JlZ29uMREwDwYDVQQHDAhQb3J0bGFuZDAeFw0xODA3MDMw
+-OTMyNTFaFw0yMzA3MDIwOTMyNTFaMEUxCzAJBgNVBAYTAlVTMQ8wDQYDVQQIDAZP
+-cmVnb24xETAPBgNVBAcMCFBvcnRsYW5kMRIwEAYDVQQDDAkxMjcuMC4wLjEwggEi
+-MA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDexH8hCVisI6sHb7o2nK3kMuwT
+-DEBoQesEqZsfypiwOYkB2OqzW3HmFfDeUVKBGBJk07QPYM1v9ocaEbYFkAOpj1hH
+-Gl02DihWqMqbFdwugV/z6dwo8r7ZOsCYhDeAhtXKbAX2ASGdlHusY9lIHRqGrlm3
+-veHJrdXUAQAYHyI7XrinLV8RNCMDI3CVhcNEOc3C3AyufcXUZ1cEGAYDPXGtwPEd
+-RFQQBbyYSQ4RgR2BlPkPE1VQiE01cDFMF8RNaQL89uhJkMruano+7eTawax1h8q4
+-D2LK9sRPRtz7Zivx3Z2Vk9I7suX9C2RhuSgzHiXWuP7VBVcJiAL/GICoq9bJAgMB
+-AAEwDQYJKoZIhvcNAQELBQADggEBABy/ofQyVtXNZ6thyU+M41m3nb2DFayFimjm
+-wPcbgXR/EPyZrP2I1O8FZh7KlICg97kqPsN4CvVU6n9KVmM3EVzwNcPuwr0ufXHF
+-nq/lrVvy0osNh8KzN8jpHZ8Dsl4XXnXAKh4oxCRVB+R4FVirBTAQiu7OUFk+s7I5
+-hoXI47whP7sOmxB+2YbVFPSTj26pupssMHCDoxAXC36ARH/68itdX2LQ5iLoqzEI
+-PNxuLY3fFEGnu0ymZUMuevIbD4tAZiIlw17gr683pwNCuEvKAyNoehLnknXIILs5
+-pVx3XcS6vw5+IbQb+HdxT/RPm6U4fIZVFdoC2o/x1G8wzPJvW/0=
++MIICrTCCAZUCFHOQggvUf1o8c5i3yNyiGLNcLC4pMA0GCSqGSIb3DQEBCwUAMBIx
++EDAOBgNVBAMMB1F0Uk8gQ0EwHhcNMjEwMjI0MTEzMzU1WhcNMjMwNTMwMTEzMzU1
++WjAUMRIwEAYDVQQDDAkxMjcuMC4wLjEwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAw
++ggEKAoIBAQDbl9iuedw0oSbtpC2m30YdzwRmemijasP9SQGQ6+piUOFUKCZsoGWc
++RcEnLGzC+KJ7FXh8jA1kTXSW6ghqvrUysN8VzjgmcCLFee4JAkCUY8yNrlq13ciR
++19BE09kJdOPZeI57pCSBNA6iy03Q4nc/GJpG63QTqJv/WUUgMek0UsmZIzDcWaqr
++MCMnLMaRi5oKFCnnl8E0XDuRm1nqPAzT+us/4upMv+7Q2xs4QFXbLUpSIToNc1wm
++tP6OAGaYClbJZgZbUNowj0wJeCUAwGGcDpliYj1JB8R015z8Kd8pDCvdD7XL35JR
++rT+eaBFNLUrl30aIl3lWf/buv3OoRmuVAgMBAAEwDQYJKoZIhvcNAQELBQADggEB
++AJjdfuy2pb3KgnpxYiXfKXCqGlN7E1RyoCIsMhldWcxAN5cwIJCrvde5MNI8kDvd
++0SfDpRpCP/hZqpR6DsR9iNYJprXlQNZ7Rs41Eswwlb66DqmBlb5ZQcYl8KsKV5fw
++7PhvLpjC5hEg1OBg1Ooz+aNvI9OJYIRFUJ1smtRzwXWuQd5QoqYVRpzvmrFawnGa
++2NHywiwgKyGvY/y82pPuj1rt0L+bae85cZm32f6gp1me9OuLIqA2G5UafSiigWBY
++YL249Rd4rrT87GAeaiBo8ZxZ8de8O7TOBjSNrfAMySepDWjfFfoNpyp+4foRKmpE
++aZmgGTIj5rfhYh4Gcj1nZBw=
+ -----END CERTIFICATE-----
+diff --git a/examples/remoteobjects/websockets/common/cert/client.key b/examples/remoteobjects/websockets/common/cert/client.key
+index 75e1f43..b3f4f1a 100644
+--- a/examples/remoteobjects/websockets/common/cert/client.key
++++ b/examples/remoteobjects/websockets/common/cert/client.key
+@@ -1,27 +1,27 @@
+ -----BEGIN RSA PRIVATE KEY-----
+-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
+ -----END RSA PRIVATE KEY-----
+diff --git a/examples/remoteobjects/websockets/common/cert/readme b/examples/remoteobjects/websockets/common/cert/readme
+new file mode 100644
+index 0000000..1386169
+--- /dev/null
++++ b/examples/remoteobjects/websockets/common/cert/readme
+@@ -0,0 +1,2 @@
++These files are generated by the script located at tests/auto/external_IODevice/cert/generate.sh 
++
+diff --git a/examples/remoteobjects/websockets/common/cert/rootCA.key b/examples/remoteobjects/websockets/common/cert/rootCA.key
+index 4603898..1647817 100644
+--- a/examples/remoteobjects/websockets/common/cert/rootCA.key
++++ b/examples/remoteobjects/websockets/common/cert/rootCA.key
+@@ -1,27 +1,27 @@
+ -----BEGIN RSA PRIVATE KEY-----
+-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
+ -----END RSA PRIVATE KEY-----
+diff --git a/examples/remoteobjects/websockets/common/cert/rootCA.pem b/examples/remoteobjects/websockets/common/cert/rootCA.pem
+index 6f3f886..7f6cce5 100644
+--- a/examples/remoteobjects/websockets/common/cert/rootCA.pem
++++ b/examples/remoteobjects/websockets/common/cert/rootCA.pem
+@@ -1,20 +1,19 @@
+ -----BEGIN CERTIFICATE-----
+-MIIDODCCAiCgAwIBAgIJAJDf3heNbfP6MA0GCSqGSIb3DQEBCwUAMDExCzAJBgNV
+-BAYTAlVTMQ8wDQYDVQQIDAZPcmVnb24xETAPBgNVBAcMCFBvcnRsYW5kMB4XDTE4
+-MDcwMzA5MzI1MFoXDTIzMDcwMjA5MzI1MFowMTELMAkGA1UEBhMCVVMxDzANBgNV
+-BAgMBk9yZWdvbjERMA8GA1UEBwwIUG9ydGxhbmQwggEiMA0GCSqGSIb3DQEBAQUA
+-A4IBDwAwggEKAoIBAQCcWBhDCDjF4DbJidZnROpkIQGXODbNuLROh47eaw5gjubq
+-6sj+BSne57Mr/ls73FW51Fir2psr/VeYCEP6ggvFUVjxUc72nvEZVq/ZPxw+0VSS
+-PTn1ZPtMOU7AQg7JvtZsSMsTVrS70jKXom7tXAJ/TGKO0PxOiYHjU+iM17j0bUk3
+-kIoB2QJjKuCMIGPXeJmj1UWn/FZZN+TqI9r3bwBq9hhRYeLMBzcq+vjoMZb2kiM+
+-2EcQLp2aJfSgd8sXwdxO+Av+kfMXZtPmCtigBHAh5y0P33rPyyauw3tyV+MwfAMc
+-fxo4KAi8006ziNZK7qheoTC8bJHGawcWLWNuEc2TAgMBAAGjUzBRMB0GA1UdDgQW
+-BBRFDBFImjfGGcuUO2yGvXFtkj+tATAfBgNVHSMEGDAWgBRFDBFImjfGGcuUO2yG
+-vXFtkj+tATAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQCbBnbX
+-ms5mFTaPJislt+8A7c/HKz5S5U2jg4+5Nh7b7szbG3s/AGDuSwEQDRAU5J8gqb1r
+-IkmrkZA3C8mEY/NLzDjbbW+T0z7zlXFXWKZmzhx+ROONys1HGKwNRe/oa9cAJnbv
+-KeMfruIXeSTf6U9tehUdoEk87eTAONm4PtVgE4aenSxaIdT7dXlzYBzhCFzsXH/y
+-VyNQD0wd7u+L6av+zRod7Sz7WU/Lnhi1fQXcFmmAmmmCHyctI0xgwdRB9O80ls8s
+-Ea+0J9Mkt07YTKcG1ZpmJHU915M/aDDpV/2RGcYGLOHOrD1IT8Cl3ZwHGlERI3y6
+-+GFPhQzo4mXu3pdb
++MIIDBTCCAe2gAwIBAgIUV9eILCYaC+qwZHR7OO23uyd2UjwwDQYJKoZIhvcNAQEL
++BQAwEjEQMA4GA1UEAwwHUXRSTyBDQTAeFw0yMTAyMjQxMTMzNTVaFw0yMzA2MTAx
++MTMzNTVaMBIxEDAOBgNVBAMMB1F0Uk8gQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IB
++DwAwggEKAoIBAQC6VWecfBEXp7ZoBOFKLVxmlSU7dl2rM8i5/vk0FtFjbL1Wb4Vz
++IKpSq43E/+oMTTad9AUF389QqpRZCzQRdURVk8Qbqz+XuKidgeQyZZKOH4ABansj
++DHcyUcU2L1zleuh3uJLWKCDRiENCWdPTEZ9NdlqxQn+zo242hmI3kvqwQpgNIC6T
++PLKpLbdauoThG+wYBqhpomq7UxPwMGoj3Gg+ki/Bv/iB05mfhgKVbZZatWMJNPbM
++TNQCHUGN0fd2S1eiCIV9ce44/hbyy47Hjo1cNxnd/ksXwJP/a6r2Xy+1r6lXZyIE
++Ahy0a7nP58R1MKiO8JY68LNiaO16n/JO6RP5AgMBAAGjUzBRMB0GA1UdDgQWBBSu
++ehS/XLejTiDbCddGU2mMZ1t3CjAfBgNVHSMEGDAWgBSuehS/XLejTiDbCddGU2mM
++Z1t3CjAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQB8JzSuhHPK
++cjhLqOHUGMKtKWOd5p9g2D45cAWh6jdzU/AhmslMPbsO5hZkqfE+3xARtcMmQfF2
++k1Qyp3hDTN1ZqHSM6Urq9uR33/wXZbNRUNCD8lAmqKyzF9NF7Q+tmC//IMRtVQhK
++aMN3LciyYGQjT0XhDKFWEz9/AvUQD97mLow2m0/izqE4SI6ekQDNL26IiCWFgFjh
++ScZjcJ1ogluD2a6sEUGywRXLNV/bdSjRgkAbpvJFrok7dDZ8xCNhOg4xJJQJRWm7
++ZusUydiVyfgrFan6MD+EdldRHjAs8S9BJfZ0RTOWnD9V8auKuVomzKDed54QlXXi
++zwowb3Objpqh
+ -----END CERTIFICATE-----
+diff --git a/examples/remoteobjects/websockets/common/cert/rootCA.srl b/examples/remoteobjects/websockets/common/cert/rootCA.srl
+index 8888354..d292c9f 100644
+--- a/examples/remoteobjects/websockets/common/cert/rootCA.srl
++++ b/examples/remoteobjects/websockets/common/cert/rootCA.srl
+@@ -1 +1 @@
+-CF924143F22B21E0
++7390820BD47F5A3C7398B7C8DCA218B35C2C2E29
+diff --git a/examples/remoteobjects/websockets/common/cert/server.crt b/examples/remoteobjects/websockets/common/cert/server.crt
+index 0587867..df9d55c 100644
+--- a/examples/remoteobjects/websockets/common/cert/server.crt
++++ b/examples/remoteobjects/websockets/common/cert/server.crt
+@@ -1,18 +1,19 @@
+ -----BEGIN CERTIFICATE-----
+-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
++sn4Jp5gPPBf7jDFKp8PDdbPmk0qN+Wm8gA==
+ -----END CERTIFICATE-----
+diff --git a/examples/remoteobjects/websockets/common/cert/server.key b/examples/remoteobjects/websockets/common/cert/server.key
+index e9bc3a1..05144f4 100644
+--- a/examples/remoteobjects/websockets/common/cert/server.key
++++ b/examples/remoteobjects/websockets/common/cert/server.key
+@@ -1,27 +1,27 @@
+ -----BEGIN RSA PRIVATE KEY-----
+-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
+ -----END RSA PRIVATE KEY-----
+diff --git a/examples/remoteobjects/websockets/wsserver/main.cpp b/examples/remoteobjects/websockets/wsserver/main.cpp
+index 26bbc02..f6a4330 100644
+--- a/examples/remoteobjects/websockets/wsserver/main.cpp
++++ b/examples/remoteobjects/websockets/wsserver/main.cpp
+@@ -195,11 +195,11 @@ int main(int argc, char *argv[])
+     view.show();
+     TimerHandler handler;
+     handler.model = &sourceModel;
+-    QTimer::singleShot(5000, &handler, SLOT(changeData()));
+-    QTimer::singleShot(10000, &handler, SLOT(insertData()));
+-    QTimer::singleShot(11000, &handler, SLOT(changeFlags()));
+-    QTimer::singleShot(12000, &handler, SLOT(removeData()));
+-    QTimer::singleShot(13000, &handler, SLOT(moveData()));
++    QTimer::singleShot(5000, &handler, &TimerHandler::changeData);
++    QTimer::singleShot(10000, &handler, &TimerHandler::insertData);
++    QTimer::singleShot(11000, &handler, &TimerHandler::changeFlags);
++    QTimer::singleShot(12000, &handler, &TimerHandler::removeData);
++    QTimer::singleShot(13000, &handler, &TimerHandler::moveData);
+ 
+     return app.exec();
+ }
+diff --git a/src/remoteobjects/doc/snippets/cmake-macros/simpleswitch.cpp b/src/remoteobjects/doc/snippets/cmake-macros/simpleswitch.cpp
+index a5ab3e0..7ee8e57 100644
+--- a/src/remoteobjects/doc/snippets/cmake-macros/simpleswitch.cpp
++++ b/src/remoteobjects/doc/snippets/cmake-macros/simpleswitch.cpp
+@@ -54,7 +54,7 @@
+ SimpleSwitch::SimpleSwitch(QObject *parent) : SimpleSwitchSimpleSource(parent)
+ {
+     stateChangeTimer = new QTimer(this); // Initialize timer
+-    QObject::connect(stateChangeTimer, SIGNAL(timeout()), this, SLOT(timeout_slot())); // connect timeout() signal from stateChangeTimer to timeout_slot() of simpleSwitch
++    QObject::connect(stateChangeTimer, &SimpleSwitch::timeout, this, &SimpleSwitch::timeout_slot); // connect timeout() signal from stateChangeTimer to timeout_slot() of simpleSwitch
+     stateChangeTimer->start(2000); // Start timer and set timout to 2 seconds
+     qDebug() << "Source Node Started";
+ }
+diff --git a/src/remoteobjects/doc/snippets/doc_src_simpleswitch.cpp b/src/remoteobjects/doc/snippets/doc_src_simpleswitch.cpp
+index 5578511..22e56d0 100644
+--- a/src/remoteobjects/doc/snippets/doc_src_simpleswitch.cpp
++++ b/src/remoteobjects/doc/snippets/doc_src_simpleswitch.cpp
+@@ -82,7 +82,7 @@ private:
+ SimpleSwitch::SimpleSwitch(QObject *parent) : SimpleSwitchSimpleSource(parent)
+ {
+     stateChangeTimer = new QTimer(this); // Initialize timer
+-    QObject::connect(stateChangeTimer, SIGNAL(timeout()), this, SLOT(timeout_slot())); // connect timeout() signal from stateChangeTimer to timeout_slot() of simpleSwitch
++    QObject::connect(stateChangeTimer, &SimpleSwitch::timeout, this, &SimpleSwitch::timeout_slot); // connect timeout() signal from stateChangeTimer to timeout_slot() of simpleSwitch
+     stateChangeTimer->start(2000); // Start timer and set timout to 2 seconds
+     qDebug() << "Source Node Started";
+ }
+@@ -200,12 +200,12 @@ Client::~Client()
+ 
+ void Client::initConnections()
+ {
+-        // initialize connections between signals and slots
++    // initialize connections between signals and slots
+ 
+-       // connect source replica signal currStateChanged() with client's recSwitchState() slot to receive source's current state
+-        QObject::connect(reptr.data(), SIGNAL(currStateChanged()), this, SLOT(recSwitchState_slot()));
+-       // connect client's echoSwitchState(..) signal with replica's server_slot(..) to echo back received state
+-        QObject::connect(this, SIGNAL(echoSwitchState(bool)),reptr.data(), SLOT(server_slot(bool)));
++    // connect source replica signal currStateChanged() with client's recSwitchState() slot to receive source's current state
++    QObject::connect(reptr.data(), &SimpleSwitchReplica::currStateChanged, this, &Client::recSwitchState_slot);
++    // connect client's echoSwitchState(..) signal with replica's server_slot(..) to echo back received state
++    QObject::connect(this, &Client::echoSwitchState, reptr.data(), &SimpleSwitchReplica::server_slot);
+ }
+ 
+ void Client::recSwitchState_slot()
+@@ -289,7 +289,8 @@ DynamicClient::DynamicClient(QSharedPointer<QRemoteObjectDynamicReplica> ptr) :
+ {
+ 
+     //connect signal for replica valid changed with signal slot initialization
+-    QObject::connect(reptr.data(), SIGNAL(initialized()), this, SLOT(initConnection_slot()));
++    QObject::connect(reptr.data(), &QRemoteObjectDynamicReplica::initialized, this,
++                     &DynamicClient::initConnection_slot);
+ }
+ 
+ //destructor
+diff --git a/src/remoteobjects/qconnectionfactories.cpp b/src/remoteobjects/qconnectionfactories.cpp
+index 0742eb5..1dc6cfc 100644
+--- a/src/remoteobjects/qconnectionfactories.cpp
++++ b/src/remoteobjects/qconnectionfactories.cpp
+@@ -234,7 +234,7 @@ ExternalIoDevice::ExternalIoDevice(QIODevice *device, QObject *parent)
+     connect(m_device.data(), &QIODevice::aboutToClose, this, [this]() { this->m_isClosing = true; });
+     connect(m_device.data(), &QIODevice::readyRead, this, &ExternalIoDevice::readyRead);
+     auto meta = device->metaObject();
+-    if (-1 == meta->indexOfSignal(SIGNAL(disconnected())))
++    if (-1 != meta->indexOfSignal(SIGNAL(disconnected())))
+       connect(m_device.data(), SIGNAL(disconnected()), this, SIGNAL(disconnected()));
+ }
+ 
+diff --git a/src/remoteobjects/qremoteobjectabstractitemmodeladapter.cpp b/src/remoteobjects/qremoteobjectabstractitemmodeladapter.cpp
+index a7c9be0..4e6995f 100644
+--- a/src/remoteobjects/qremoteobjectabstractitemmodeladapter.cpp
++++ b/src/remoteobjects/qremoteobjectabstractitemmodeladapter.cpp
+@@ -74,13 +74,13 @@ QAbstractItemModelSourceAdapter::QAbstractItemModelSourceAdapter(QAbstractItemMo
+ {
+     QAbstractItemModelSourceAdapter::registerTypes();
+     m_selectionModel = sel;
+-    connect(m_model, SIGNAL(dataChanged(QModelIndex,QModelIndex,QVector<int>)), this, SLOT(sourceDataChanged(QModelIndex,QModelIndex,QVector<int>)));
+-    connect(m_model, SIGNAL(rowsInserted(QModelIndex,int,int)), this, SLOT(sourceRowsInserted(QModelIndex,int,int)));
+-    connect(m_model, SIGNAL(columnsInserted(QModelIndex,int,int)), this, SLOT(sourceColumnsInserted(QModelIndex,int,int)));
+-    connect(m_model, SIGNAL(rowsRemoved(QModelIndex,int,int)), this, SLOT(sourceRowsRemoved(QModelIndex,int,int)));
+-    connect(m_model, SIGNAL(rowsMoved(QModelIndex,int,int,QModelIndex,int)), this, SLOT(sourceRowsMoved(QModelIndex,int,int,QModelIndex,int)));
++    connect(m_model, &QAbstractItemModel::dataChanged, this, &QAbstractItemModelSourceAdapter::sourceDataChanged);
++    connect(m_model, &QAbstractItemModel::rowsInserted, this, &QAbstractItemModelSourceAdapter::sourceRowsInserted);
++    connect(m_model, &QAbstractItemModel::columnsInserted, this, &QAbstractItemModelSourceAdapter::sourceColumnsInserted);
++    connect(m_model, &QAbstractItemModel::rowsRemoved, this, &QAbstractItemModelSourceAdapter::sourceRowsRemoved);
++    connect(m_model, &QAbstractItemModel::rowsMoved, this, &QAbstractItemModelSourceAdapter::sourceRowsMoved);
+     if (m_selectionModel)
+-        connect(m_selectionModel, SIGNAL(currentChanged(QModelIndex,QModelIndex)), this, SLOT(sourceCurrentChanged(QModelIndex,QModelIndex)));
++        connect(m_selectionModel, &QItemSelectionModel::currentChanged, this, &QAbstractItemModelSourceAdapter::sourceCurrentChanged);
+ }
+ 
+ void QAbstractItemModelSourceAdapter::registerTypes()
+@@ -177,7 +177,7 @@ MetaAndDataEntries QAbstractItemModelSourceAdapter::replicaCacheRequest(size_t s
+ {
+     MetaAndDataEntries res;
+     res.roles = roles.isEmpty() ? m_availableRoles : roles;
+-    res.data = fetchTree(QModelIndex{}, size, roles);
++    res.data = fetchTree(QModelIndex {}, size, res.roles);
+     const int rowCount = m_model->rowCount(QModelIndex{});
+     const int columnCount = m_model->columnCount(QModelIndex{});
+     res.size = QSize{columnCount, rowCount};
+diff --git a/src/remoteobjects/qremoteobjectnode.cpp b/src/remoteobjects/qremoteobjectnode.cpp
+index 3d9a2fc..4b883dc 100644
+--- a/src/remoteobjects/qremoteobjectnode.cpp
++++ b/src/remoteobjects/qremoteobjectnode.cpp
+@@ -2110,6 +2110,10 @@ bool QRemoteObjectNode::connectToNode(const QUrl &address)
+ void QRemoteObjectNode::addClientSideConnection(QIODevice *ioDevice)
+ {
+     Q_D(QRemoteObjectNode);
++    if (!ioDevice || !ioDevice->isOpen()) {
++        qWarning() << "A null or closed QIODevice was passed to addClientSideConnection().  Ignoring.";
++        return;
++    }
+     ExternalIoDevice *device = new ExternalIoDevice(ioDevice, this);
+     connect(device, &IoDeviceBase::readyRead, this, [d, device]() {
+         d->onClientRead(device);
+@@ -2390,6 +2394,10 @@ bool QRemoteObjectHostBase::disableRemoting(QObject *remoteObject)
+ void QRemoteObjectHostBase::addHostSideConnection(QIODevice *ioDevice)
+ {
+     Q_D(QRemoteObjectHostBase);
++    if (!ioDevice || !ioDevice->isOpen()) {
++        qWarning() << "A null or closed QIODevice was passed to addHostSideConnection().  Ignoring.";
++        return;
++    }
+     if (!d->remoteObjectIo)
+         d->remoteObjectIo = new QRemoteObjectSourceIo(this);
+     ExternalIoDevice *device = new ExternalIoDevice(ioDevice, this);
+@@ -2397,12 +2405,17 @@ void QRemoteObjectHostBase::addHostSideConnection(QIODevice *ioDevice)
+ }
+ 
+ /*!
+- Returns a pointer to a Replica which is specifically derived from \l
+- QAbstractItemModel. The \a name provided must match the name used with the
+- matching \l {QRemoteObjectHostBase::}{enableRemoting} that put
+- the Model on the network. The returned model will be empty until it is
+- initialized with the \l Source.
+- */
++    Returns a pointer to a \l Replica which is specifically derived from \l
++    QAbstractItemModel. The \a name provided must match the name used with the
++    matching \l {QRemoteObjectHostBase::}{enableRemoting} that put
++    the \l Model on the network. \a action specifies whether the model should
++    fetch data before the \l {QRemoteObjectReplica::}{initialized} signal is
++    emitted. If it's set to QtRemoteObjects::PrefetchData, then the data for
++    roles in the \a rolesHint will be prefetched. If \a rolesHint is empty, then
++    the data for all the roles exposed by \l Source will be prefetched.
++
++    The returned model will be empty until it is initialized with the \l Source.
++*/
+ QAbstractItemModelReplica *QRemoteObjectNode::acquireModel(const QString &name, QtRemoteObjects::InitialAction action, const QVector<int> &rolesHint)
+ {
+     QAbstractItemModelReplicaImplementation *rep = acquire<QAbstractItemModelReplicaImplementation>(name);
+diff --git a/src/remoteobjects/qremoteobjectreplica.cpp b/src/remoteobjects/qremoteobjectreplica.cpp
+index 04d9ca5..6b2c6cf 100644
+--- a/src/remoteobjects/qremoteobjectreplica.cpp
++++ b/src/remoteobjects/qremoteobjectreplica.cpp
+@@ -346,7 +346,7 @@ bool QConnectedReplicaImplementation::waitForSource(int timeout)
+                          Qt::DirectConnection, nullptr);
+ 
+     if (timeout >= 0) {
+-        QTimer::singleShot(timeout, &loop, SLOT(quit()));
++        QTimer::singleShot(timeout, &loop, &QEventLoop::quit);
+     }
+ 
+     // enter the event loop and wait for a reply
+@@ -437,8 +437,9 @@ bool QConnectedReplicaImplementation::waitForFinished(const QRemoteObjectPending
+     call.d->mutex.unlock();
+ 
+     QEventLoop loop;
+-    loop.connect(call.d->watcherHelper.data(), SIGNAL(finished()), SLOT(quit()));
+-    QTimer::singleShot(timeout, &loop, SLOT(quit()));
++    loop.connect(call.d->watcherHelper.data(), &QRemoteObjectPendingCallWatcherHelper::finished,
++                 &loop, &QEventLoop::quit);
++    QTimer::singleShot(timeout, &loop, &QEventLoop::quit);
+ 
+     // enter the event loop and wait for a reply
+     loop.exec(QEventLoop::ExcludeUserInputEvents | QEventLoop::WaitForMoreEvents);
+diff --git a/src/remoteobjects/qtremoteobjectglobal.cpp b/src/remoteobjects/qtremoteobjectglobal.cpp
+index dc39fe6..340620e 100644
+--- a/src/remoteobjects/qtremoteobjectglobal.cpp
++++ b/src/remoteobjects/qtremoteobjectglobal.cpp
+@@ -48,6 +48,30 @@ Q_LOGGING_CATEGORY(QT_REMOTEOBJECT, "qt.remoteobjects", QtWarningMsg)
+ Q_LOGGING_CATEGORY(QT_REMOTEOBJECT_MODELS, "qt.remoteobjects.models", QtWarningMsg)
+ Q_LOGGING_CATEGORY(QT_REMOTEOBJECT_IO, "qt.remoteobjects.io", QtWarningMsg)
+ 
++/*!
++    \namespace QtRemoteObjects
++    \inmodule QtRemoteObjects
++
++    \brief The QtRemoteObjects namespace contains identifiers used in the
++    Remote Objects module, as well as some functions used from code generated
++    by the \l{Qt Remote Objects Compiler}{Replica Compiler (repc)}.
++*/
++
++/*!
++    \enum QtRemoteObjects::InitialAction
++
++    This enum type specifies the initial action when acquiring a \l Replica derived
++    from QAbstractItemModel.
++
++    \value FetchRootSize Only the size of the model is requested before the
++                         \l {QRemoteObjectReplica::}{initialized} signal is emitted,
++                         no data will be prefetched before that.
++    \value PrefetchData  Some data can be prefetched before the
++                         \l {QRemoteObjectReplica::}{initialized} signal is emitted.
++
++    \sa QRemoteObjectNode::acquireModel(), QRemoteObjectReplica::initialized()
++*/
++
+ namespace QtRemoteObjects {
+ 
+ void copyStoredProperties(const QMetaObject *mo, const void *src, void *dst)
+diff --git a/tests/auto/external_IODevice/cert/client.crt b/tests/auto/external_IODevice/cert/client.crt
+index e8c8c14..3aa0ff8 100644
+--- a/tests/auto/external_IODevice/cert/client.crt
++++ b/tests/auto/external_IODevice/cert/client.crt
+@@ -1,18 +1,17 @@
+ -----BEGIN CERTIFICATE-----
+-MIIC8jCCAdoCCQDPkkFD8ish3zANBgkqhkiG9w0BAQsFADAxMQswCQYDVQQGEwJV
+-UzEPMA0GA1UECAwGT3JlZ29uMREwDwYDVQQHDAhQb3J0bGFuZDAeFw0xODA3MDMw
+-OTMyNTFaFw0yMzA3MDIwOTMyNTFaMEUxCzAJBgNVBAYTAlVTMQ8wDQYDVQQIDAZP
+-cmVnb24xETAPBgNVBAcMCFBvcnRsYW5kMRIwEAYDVQQDDAkxMjcuMC4wLjEwggEi
+-MA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDexH8hCVisI6sHb7o2nK3kMuwT
+-DEBoQesEqZsfypiwOYkB2OqzW3HmFfDeUVKBGBJk07QPYM1v9ocaEbYFkAOpj1hH
+-Gl02DihWqMqbFdwugV/z6dwo8r7ZOsCYhDeAhtXKbAX2ASGdlHusY9lIHRqGrlm3
+-veHJrdXUAQAYHyI7XrinLV8RNCMDI3CVhcNEOc3C3AyufcXUZ1cEGAYDPXGtwPEd
+-RFQQBbyYSQ4RgR2BlPkPE1VQiE01cDFMF8RNaQL89uhJkMruano+7eTawax1h8q4
+-D2LK9sRPRtz7Zivx3Z2Vk9I7suX9C2RhuSgzHiXWuP7VBVcJiAL/GICoq9bJAgMB
+-AAEwDQYJKoZIhvcNAQELBQADggEBABy/ofQyVtXNZ6thyU+M41m3nb2DFayFimjm
+-wPcbgXR/EPyZrP2I1O8FZh7KlICg97kqPsN4CvVU6n9KVmM3EVzwNcPuwr0ufXHF
+-nq/lrVvy0osNh8KzN8jpHZ8Dsl4XXnXAKh4oxCRVB+R4FVirBTAQiu7OUFk+s7I5
+-hoXI47whP7sOmxB+2YbVFPSTj26pupssMHCDoxAXC36ARH/68itdX2LQ5iLoqzEI
+-PNxuLY3fFEGnu0ymZUMuevIbD4tAZiIlw17gr683pwNCuEvKAyNoehLnknXIILs5
+-pVx3XcS6vw5+IbQb+HdxT/RPm6U4fIZVFdoC2o/x1G8wzPJvW/0=
++MIICrTCCAZUCFHOQggvUf1o8c5i3yNyiGLNcLC4pMA0GCSqGSIb3DQEBCwUAMBIx
++EDAOBgNVBAMMB1F0Uk8gQ0EwHhcNMjEwMjI0MTEzMzU1WhcNMjMwNTMwMTEzMzU1
++WjAUMRIwEAYDVQQDDAkxMjcuMC4wLjEwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAw
++ggEKAoIBAQDbl9iuedw0oSbtpC2m30YdzwRmemijasP9SQGQ6+piUOFUKCZsoGWc
++RcEnLGzC+KJ7FXh8jA1kTXSW6ghqvrUysN8VzjgmcCLFee4JAkCUY8yNrlq13ciR
++19BE09kJdOPZeI57pCSBNA6iy03Q4nc/GJpG63QTqJv/WUUgMek0UsmZIzDcWaqr
++MCMnLMaRi5oKFCnnl8E0XDuRm1nqPAzT+us/4upMv+7Q2xs4QFXbLUpSIToNc1wm
++tP6OAGaYClbJZgZbUNowj0wJeCUAwGGcDpliYj1JB8R015z8Kd8pDCvdD7XL35JR
++rT+eaBFNLUrl30aIl3lWf/buv3OoRmuVAgMBAAEwDQYJKoZIhvcNAQELBQADggEB
++AJjdfuy2pb3KgnpxYiXfKXCqGlN7E1RyoCIsMhldWcxAN5cwIJCrvde5MNI8kDvd
++0SfDpRpCP/hZqpR6DsR9iNYJprXlQNZ7Rs41Eswwlb66DqmBlb5ZQcYl8KsKV5fw
++7PhvLpjC5hEg1OBg1Ooz+aNvI9OJYIRFUJ1smtRzwXWuQd5QoqYVRpzvmrFawnGa
++2NHywiwgKyGvY/y82pPuj1rt0L+bae85cZm32f6gp1me9OuLIqA2G5UafSiigWBY
++YL249Rd4rrT87GAeaiBo8ZxZ8de8O7TOBjSNrfAMySepDWjfFfoNpyp+4foRKmpE
++aZmgGTIj5rfhYh4Gcj1nZBw=
+ -----END CERTIFICATE-----
+diff --git a/tests/auto/external_IODevice/cert/client.key b/tests/auto/external_IODevice/cert/client.key
+index 75e1f43..b3f4f1a 100644
+--- a/tests/auto/external_IODevice/cert/client.key
++++ b/tests/auto/external_IODevice/cert/client.key
+@@ -1,27 +1,27 @@
+ -----BEGIN RSA PRIVATE KEY-----
+-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
+ -----END RSA PRIVATE KEY-----
+diff --git a/tests/auto/external_IODevice/cert/generate.sh b/tests/auto/external_IODevice/cert/generate.sh
+new file mode 100644
+index 0000000..b79c862
+--- /dev/null
++++ b/tests/auto/external_IODevice/cert/generate.sh
+@@ -0,0 +1,70 @@
++#!/bin/sh
++#############################################################################
++##
++## Copyright (C) 2021 The Qt Company Ltd.
++## Contact: https://www.qt.io/licensing/
++##
++## This file is the build configuration utility of the Qt Toolkit.
++##
++## $QT_BEGIN_LICENSE:GPL-EXCEPT$
++## Commercial License Usage
++## Licensees holding valid commercial Qt licenses may use this file in
++## accordance with the commercial license agreement provided with the
++## Software or, alternatively, in accordance with the terms contained in
++## a written agreement between you and The Qt Company. For licensing terms
++## and conditions see https://www.qt.io/terms-conditions. For further
++## information use the contact form at https://www.qt.io/contact-us.
++##
++## GNU General Public License Usage
++## Alternatively, this file may be used under the terms of the GNU
++## General Public License version 3 as published by the Free Software
++## Foundation with exceptions as appearing in the file LICENSE.GPL3-EXCEPT
++## included in the packaging of this file. Please review the following
++## information to ensure the GNU General Public License requirements will
++## be met: https://www.gnu.org/licenses/gpl-3.0.html.
++##
++## $QT_END_LICENSE$
++##
++#############################################################################
++
++# Generate the CA key
++openssl genrsa -out rootCA.key 2048
++# Generate the CA cert
++openssl req -x509 -key rootCA.key -out rootCA.pem -sha256 -nodes -subj "/CN=QtRO CA" -days 836
++
++# genFiles stem [extra args to signing]
++genFiles () {
++    stem=$1
++    shift
++    # Generate key
++    openssl genrsa -out $stem.key 2048
++    # Generate certificate-signing request
++    openssl req -new -key $stem.key -out $stem.csr -subj "/CN=127.0.0.1"
++    # Generate and sign the certificate
++    openssl x509 -req -in $stem.csr -out $stem.crt \
++                 -CA rootCA.pem -CAkey rootCA.key -CAcreateserial -days 825 -sha256 "$@"
++    # Delete the signing request, no longer needed
++    rm $stem.csr
++}
++genFiles server -extfile server-req.ext
++genFiles client
++
++dest1="../../../../examples/remoteobjects/ssl/sslserver/cert/"
++dest2="../../../../examples/remoteobjects/websockets/common/cert/"
++
++cp -f "client.crt" $dest1
++cp -f "client.crt" $dest2
++cp -f "client.key" $dest1
++cp -f "client.key" $dest2
++
++cp -f "server.crt" $dest1
++cp -f "server.crt" $dest2
++cp -f "server.key" $dest1
++cp -f "server.key" $dest2
++
++cp -f "rootCA.pem" $dest1
++cp -f "rootCA.key" $dest1
++cp -f "rootCA.srl" $dest1
++cp -f "rootCA.pem" $dest2
++cp -f "rootCA.key" $dest2
++cp -f "rootCA.srl" $dest2
+diff --git a/tests/auto/external_IODevice/cert/rootCA.key b/tests/auto/external_IODevice/cert/rootCA.key
+index 4603898..1647817 100644
+--- a/tests/auto/external_IODevice/cert/rootCA.key
++++ b/tests/auto/external_IODevice/cert/rootCA.key
+@@ -1,27 +1,27 @@
+ -----BEGIN RSA PRIVATE KEY-----
+-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
+ -----END RSA PRIVATE KEY-----
+diff --git a/tests/auto/external_IODevice/cert/rootCA.pem b/tests/auto/external_IODevice/cert/rootCA.pem
+index 6f3f886..7f6cce5 100644
+--- a/tests/auto/external_IODevice/cert/rootCA.pem
++++ b/tests/auto/external_IODevice/cert/rootCA.pem
+@@ -1,20 +1,19 @@
+ -----BEGIN CERTIFICATE-----
+-MIIDODCCAiCgAwIBAgIJAJDf3heNbfP6MA0GCSqGSIb3DQEBCwUAMDExCzAJBgNV
+-BAYTAlVTMQ8wDQYDVQQIDAZPcmVnb24xETAPBgNVBAcMCFBvcnRsYW5kMB4XDTE4
+-MDcwMzA5MzI1MFoXDTIzMDcwMjA5MzI1MFowMTELMAkGA1UEBhMCVVMxDzANBgNV
+-BAgMBk9yZWdvbjERMA8GA1UEBwwIUG9ydGxhbmQwggEiMA0GCSqGSIb3DQEBAQUA
+-A4IBDwAwggEKAoIBAQCcWBhDCDjF4DbJidZnROpkIQGXODbNuLROh47eaw5gjubq
+-6sj+BSne57Mr/ls73FW51Fir2psr/VeYCEP6ggvFUVjxUc72nvEZVq/ZPxw+0VSS
+-PTn1ZPtMOU7AQg7JvtZsSMsTVrS70jKXom7tXAJ/TGKO0PxOiYHjU+iM17j0bUk3
+-kIoB2QJjKuCMIGPXeJmj1UWn/FZZN+TqI9r3bwBq9hhRYeLMBzcq+vjoMZb2kiM+
+-2EcQLp2aJfSgd8sXwdxO+Av+kfMXZtPmCtigBHAh5y0P33rPyyauw3tyV+MwfAMc
+-fxo4KAi8006ziNZK7qheoTC8bJHGawcWLWNuEc2TAgMBAAGjUzBRMB0GA1UdDgQW
+-BBRFDBFImjfGGcuUO2yGvXFtkj+tATAfBgNVHSMEGDAWgBRFDBFImjfGGcuUO2yG
+-vXFtkj+tATAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQCbBnbX
+-ms5mFTaPJislt+8A7c/HKz5S5U2jg4+5Nh7b7szbG3s/AGDuSwEQDRAU5J8gqb1r
+-IkmrkZA3C8mEY/NLzDjbbW+T0z7zlXFXWKZmzhx+ROONys1HGKwNRe/oa9cAJnbv
+-KeMfruIXeSTf6U9tehUdoEk87eTAONm4PtVgE4aenSxaIdT7dXlzYBzhCFzsXH/y
+-VyNQD0wd7u+L6av+zRod7Sz7WU/Lnhi1fQXcFmmAmmmCHyctI0xgwdRB9O80ls8s
+-Ea+0J9Mkt07YTKcG1ZpmJHU915M/aDDpV/2RGcYGLOHOrD1IT8Cl3ZwHGlERI3y6
+-+GFPhQzo4mXu3pdb
++MIIDBTCCAe2gAwIBAgIUV9eILCYaC+qwZHR7OO23uyd2UjwwDQYJKoZIhvcNAQEL
++BQAwEjEQMA4GA1UEAwwHUXRSTyBDQTAeFw0yMTAyMjQxMTMzNTVaFw0yMzA2MTAx
++MTMzNTVaMBIxEDAOBgNVBAMMB1F0Uk8gQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IB
++DwAwggEKAoIBAQC6VWecfBEXp7ZoBOFKLVxmlSU7dl2rM8i5/vk0FtFjbL1Wb4Vz
++IKpSq43E/+oMTTad9AUF389QqpRZCzQRdURVk8Qbqz+XuKidgeQyZZKOH4ABansj
++DHcyUcU2L1zleuh3uJLWKCDRiENCWdPTEZ9NdlqxQn+zo242hmI3kvqwQpgNIC6T
++PLKpLbdauoThG+wYBqhpomq7UxPwMGoj3Gg+ki/Bv/iB05mfhgKVbZZatWMJNPbM
++TNQCHUGN0fd2S1eiCIV9ce44/hbyy47Hjo1cNxnd/ksXwJP/a6r2Xy+1r6lXZyIE
++Ahy0a7nP58R1MKiO8JY68LNiaO16n/JO6RP5AgMBAAGjUzBRMB0GA1UdDgQWBBSu
++ehS/XLejTiDbCddGU2mMZ1t3CjAfBgNVHSMEGDAWgBSuehS/XLejTiDbCddGU2mM
++Z1t3CjAPBgNVHRMBAf8EBTADAQH/MA0GCSqGSIb3DQEBCwUAA4IBAQB8JzSuhHPK
++cjhLqOHUGMKtKWOd5p9g2D45cAWh6jdzU/AhmslMPbsO5hZkqfE+3xARtcMmQfF2
++k1Qyp3hDTN1ZqHSM6Urq9uR33/wXZbNRUNCD8lAmqKyzF9NF7Q+tmC//IMRtVQhK
++aMN3LciyYGQjT0XhDKFWEz9/AvUQD97mLow2m0/izqE4SI6ekQDNL26IiCWFgFjh
++ScZjcJ1ogluD2a6sEUGywRXLNV/bdSjRgkAbpvJFrok7dDZ8xCNhOg4xJJQJRWm7
++ZusUydiVyfgrFan6MD+EdldRHjAs8S9BJfZ0RTOWnD9V8auKuVomzKDed54QlXXi
++zwowb3Objpqh
+ -----END CERTIFICATE-----
+diff --git a/tests/auto/external_IODevice/cert/rootCA.srl b/tests/auto/external_IODevice/cert/rootCA.srl
+index 8888354..d292c9f 100644
+--- a/tests/auto/external_IODevice/cert/rootCA.srl
++++ b/tests/auto/external_IODevice/cert/rootCA.srl
+@@ -1 +1 @@
+-CF924143F22B21E0
++7390820BD47F5A3C7398B7C8DCA218B35C2C2E29
+diff --git a/tests/auto/external_IODevice/cert/server-req.ext b/tests/auto/external_IODevice/cert/server-req.ext
+new file mode 100644
+index 0000000..dc4377e
+--- /dev/null
++++ b/tests/auto/external_IODevice/cert/server-req.ext
+@@ -0,0 +1,8 @@
++authorityKeyIdentifier=keyid,issuer
++basicConstraints=CA:FALSE
++keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
++extendedKeyUsage = serverAuth
++subjectAltName = @alt_names
++
++[alt_names]
++IP.1 = 127.0.0.1
+diff --git a/tests/auto/external_IODevice/cert/server.crt b/tests/auto/external_IODevice/cert/server.crt
+index 0587867..df9d55c 100644
+--- a/tests/auto/external_IODevice/cert/server.crt
++++ b/tests/auto/external_IODevice/cert/server.crt
+@@ -1,18 +1,19 @@
+ -----BEGIN CERTIFICATE-----
+-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
++sn4Jp5gPPBf7jDFKp8PDdbPmk0qN+Wm8gA==
+ -----END CERTIFICATE-----
+diff --git a/tests/auto/external_IODevice/cert/server.key b/tests/auto/external_IODevice/cert/server.key
+index e9bc3a1..05144f4 100644
+--- a/tests/auto/external_IODevice/cert/server.key
++++ b/tests/auto/external_IODevice/cert/server.key
+@@ -1,27 +1,27 @@
+ -----BEGIN RSA PRIVATE KEY-----
+-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
+ -----END RSA PRIVATE KEY-----
+diff --git a/tests/auto/integration/tst_integration.cpp b/tests/auto/integration/tst_integration.cpp
+index 0f72c05..56d5c53 100644
+--- a/tests/auto/integration/tst_integration.cpp
++++ b/tests/auto/integration/tst_integration.cpp
+@@ -342,7 +342,7 @@ private slots:
+ 
+         // set property on the replica (test property change packet)
+         {
+-            QSignalSpy spy(tc_rep.data(), SIGNAL(classEnumChanged(TestClassReplica::ClassEnum)));
++            QSignalSpy spy(tc_rep.data(), &TestClassReplica::classEnumChanged);
+             QVERIFY(spy.isValid());
+             tc_rep->pushClassEnum(TestClassReplica::Two);
+             QVERIFY(spy.count() || spy.wait());
+@@ -352,7 +352,7 @@ private slots:
+ 
+         // set property on the source (test property change packet)
+         {
+-            QSignalSpy spy(tc_rep.data(), SIGNAL(classEnumChanged(TestClassReplica::ClassEnum)));
++            QSignalSpy spy(tc_rep.data(), &TestClassReplica::classEnumChanged);
+             tc.setClassEnum(TestClassSimpleSource::One);
+             QVERIFY(spy.wait());
+ 
+@@ -380,7 +380,7 @@ private slots:
+ 
+         // write enum on the dynamic replica
+         {
+-            QSignalSpy spy(tc_rep.data(), SIGNAL(classEnumRWChanged(TestClassReplica::ClassEnum)));
++            QSignalSpy spy(tc_rep.data(), &TestClassReplica::classEnumRWChanged);
+             property.write(tc_repDynamic.data(), TestClassReplica::Two);
+             QVERIFY(spy.wait());
+ 
+@@ -401,7 +401,7 @@ private slots:
+ 
+         // ensure write enum fails on ReadPush
+         {
+-            QSignalSpy spy(tc_rep.data(), SIGNAL(classEnumChanged(TestClassReplica::ClassEnum)));
++            QSignalSpy spy(tc_rep.data(), &TestClassReplica::classEnumChanged);
+             bool res = property.write(tc_repDynamic.data(), TestClassReplica::Two);
+             QVERIFY(!res);
+             int methodIndex = metaObject->indexOfMethod("pushClassEnum(TestClassReplica::ClassEnum)");
+@@ -470,7 +470,7 @@ private slots:
+         instances = client->instances<EngineReplica>();
+         QCOMPARE(instances, QStringList({"Engine", "Engine2"}));
+ 
+-        QSignalSpy spy(engine_r.data(), SIGNAL(stateChanged(State,State)));
++        QSignalSpy spy(engine_r.data(), &QRemoteObjectReplica::stateChanged);
+         host->disableRemoting(&e);
+         spy.wait();
+         QCOMPARE(spy.count(), 1);
+@@ -510,7 +510,7 @@ private slots:
+                 }
+             });
+ 
+-        QSignalSpy addedSpy(client->registry(), SIGNAL(remoteObjectAdded(QRemoteObjectSourceLocation)));
++        QSignalSpy addedSpy(client->registry(), &QRemoteObjectRegistry::remoteObjectAdded);
+ 
+         Engine e;
+         e.setRpm(1111);
+@@ -655,8 +655,8 @@ private slots:
+         host->enableRemoting(localEngine.data());
+         QCOMPARE(host->registry()->sourceLocations().keys().isEmpty(), true);
+ 
+-        QSignalSpy spy(host->registry(), SIGNAL(initialized()));
+-        QSignalSpy addedSpy(host->registry(), SIGNAL(remoteObjectAdded(QRemoteObjectSourceLocation)));
++        QSignalSpy spy(host->registry(), &QRemoteObjectRegistry::initialized);
++        QSignalSpy addedSpy(host->registry(), &QRemoteObjectRegistry::remoteObjectAdded);
+         setupRegistry();
+         bool added = addedSpy.wait();
+         QVERIFY(spy.count() > 0);
+@@ -696,7 +696,7 @@ private slots:
+         setupClient();
+ 
+         const QScopedPointer<EngineReplica> engine_r(client->acquire<EngineReplica>());
+-        QSignalSpy spy(engine_r.data(), SIGNAL(rpmChanged(int)));
++        QSignalSpy spy(engine_r.data(), &EngineReplica::rpmChanged);
+         e.setRpm(2345);
+ 
+         spy.wait();
+@@ -717,7 +717,7 @@ private slots:
+ 
+         setupClient();
+ 
+-        QSignalSpy spy(this, SIGNAL(forwardResult(int)));
++        QSignalSpy spy(this, &tst_Integration::forwardResult);
+         QScopedPointer<QRemoteObjectDynamicReplica> engine_dr(client->acquireDynamic(QStringLiteral("Engine")));
+         connect(engine_dr.data(), &QRemoteObjectDynamicReplica::initialized, [&]()
+             {
+@@ -785,7 +785,7 @@ private slots:
+         QCOMPARE(reply.error(), QRemoteObjectPendingCall::InvalidMessage);
+ 
+         QRemoteObjectPendingCallWatcher watcher(reply);
+-        QSignalSpy spy(&watcher, SIGNAL(finished(QRemoteObjectPendingCallWatcher *)));
++        QSignalSpy spy(&watcher, &QRemoteObjectPendingCallWatcher::finished);
+         spy.wait();
+         QCOMPARE(spy.count(), 1);
+ 
+@@ -939,7 +939,7 @@ private slots:
+         QCOMPARE(engine_r->cylinders(), 4); // Default value
+         engine_r->waitForSource();
+         QCOMPARE(engine_r->cylinders(), 6);
+-        QSignalSpy spy(engine_r.data(), SIGNAL(rpmChanged(int)));
++        QSignalSpy spy(engine_r.data(), &EngineReplica::rpmChanged);
+         engine_r->setRpm(42);
+         spy.wait();
+         QCOMPARE(spy.count(), 1);
+@@ -957,7 +957,7 @@ private slots:
+         const QScopedPointer<EngineReplica> engine_r(client->acquire<EngineReplica>());
+         engine_r->waitForSource();
+         QCOMPARE(engine_r->started(), false);
+-        QSignalSpy spy(engine_r.data(), SIGNAL(startedChanged(bool)));
++        QSignalSpy spy(engine_r.data(), &EngineReplica::startedChanged);
+         engine_r->pushStarted(true);
+         spy.wait();
+         QCOMPARE(spy.count(), 1);
+@@ -1000,7 +1000,7 @@ private slots:
+         engine_r->waitForSource();
+         QCOMPARE(engine_r->rpm(), 0);
+ 
+-        QSignalSpy spy(engine_r.data(), SIGNAL(rpmChanged(int)));
++        QSignalSpy spy(engine_r.data(), &EngineReplica::rpmChanged);
+         engine_r->increaseRpm(1000);
+         spy.wait();
+         QCOMPARE(spy.count(), 1);
+@@ -1073,7 +1073,7 @@ private slots:
+         setupClient();
+ 
+         const QScopedPointer<EngineReplica> engine_r1(client->acquire< EngineReplica >());
+-        QSignalSpy spy_r1(engine_r1.data(), SIGNAL(rpmChanged(int)));
++        QSignalSpy spy_r1(engine_r1.data(), &EngineReplica::rpmChanged);
+         engine_r1->waitForSource();
+         QCOMPARE(engine_r1->rpm(), e.rpm());
+         QCOMPARE(spy_r1.count(), 1);
+@@ -1082,7 +1082,7 @@ private slots:
+         // which leads to different semantics for first and second replicas. Specifically, there is no
+         // way to hook in to initialized and the initial notify signals. We should consider changing this.
+         const QScopedPointer<EngineReplica> engine_r2(client->acquire< EngineReplica >());
+-//        QSignalSpy spy_r2(engine_r2.data(), SIGNAL(rpmChanged(int)));
++//        QSignalSpy spy_r2(engine_r2.data(), &EngineReplica::rpmChanged);
+ //        engine_r2->waitForSource();
+         QCOMPARE(engine_r2->rpm(), e.rpm());
+ //        QCOMPARE(spy_r2.count(), 1);
+@@ -1243,7 +1243,7 @@ private slots:
+     {
+         QRemoteObjectNode _client;
+         Q_SET_OBJECT_NAME(_client);
+-        QSignalSpy errorSpy(&_client, SIGNAL(error(QRemoteObjectNode::ErrorCode)));
++        QSignalSpy errorSpy(&_client, &QRemoteObjectNode::error);
+         QVERIFY(!_client.connectToNode(QUrl(QLatin1String("invalid:invalid"))));
+         QCOMPARE(errorSpy.count(), 1);
+         auto emittedErrorCode = errorSpy.first().at(0).value<QRemoteObjectNode::ErrorCode>();
+@@ -1258,7 +1258,7 @@ private slots:
+         setupHost();
+         Engine e;
+         host->enableRemoting<EngineSourceAPI>(&e);
+-        QSignalSpy spy(engine_d.data(), SIGNAL(rpmChanged(int)));
++        QSignalSpy spy(engine_d.data(), &EngineReplica::rpmChanged);
+         e.setRpm(50);
+ 
+         spy.wait();
+diff --git a/tests/auto/integration_external/client/main.cpp b/tests/auto/integration_external/client/main.cpp
+index 686ccc0..9ea93ba 100644
+--- a/tests/auto/integration_external/client/main.cpp
++++ b/tests/auto/integration_external/client/main.cpp
+@@ -69,9 +69,9 @@ private Q_SLOTS:
+         QVERIFY(reply.waitForFinished());
+ 
+         // BEGIN: Testing
+-        QSignalSpy advanceSpy(m_rep.data(), SIGNAL(advance()));
++        QSignalSpy advanceSpy(m_rep.data(), &MyInterfaceReplica::advance);
+ 
+-        QSignalSpy spy(m_rep.data(), SIGNAL(enum1Changed(MyInterfaceReplica::Enum1)));
++        QSignalSpy spy(m_rep.data(), &MyInterfaceReplica::enum1Changed);
+         QVERIFY(advanceSpy.wait());
+ 
+         QCOMPARE(spy.count(), 2);
+diff --git a/tests/auto/integration_external/server/main.cpp b/tests/auto/integration_external/server/main.cpp
+index 23d708f..a3f1387 100644
+--- a/tests/auto/integration_external/server/main.cpp
++++ b/tests/auto/integration_external/server/main.cpp
+@@ -71,7 +71,7 @@ private Q_SLOTS:
+ 
+         qDebug() << "Waiting for incoming connections";
+ 
+-        QSignalSpy waitForStartedSpy(&myTestServer, SIGNAL(startedChanged(bool)));
++        QSignalSpy waitForStartedSpy(&myTestServer, &MyTestServer::startedChanged);
+         QVERIFY(waitForStartedSpy.isValid());
+         QVERIFY(waitForStartedSpy.wait());
+         QCOMPARE(waitForStartedSpy.value(0).value(0).toBool(), true);
+diff --git a/tests/auto/integration_multiprocess/client/main.cpp b/tests/auto/integration_multiprocess/client/main.cpp
+index 923539e..fd0e57b 100644
+--- a/tests/auto/integration_multiprocess/client/main.cpp
++++ b/tests/auto/integration_multiprocess/client/main.cpp
+@@ -57,9 +57,9 @@ private Q_SLOTS:
+         QVERIFY(reply.waitForFinished());
+ 
+         // BEGIN: Testing
+-        QSignalSpy advanceSpy(m_rep.data(), SIGNAL(advance()));
++        QSignalSpy advanceSpy(m_rep.data(), &MyInterfaceReplica::advance);
+ 
+-        QSignalSpy spy(m_rep.data(), SIGNAL(enum1Changed(MyInterfaceReplica::Enum1)));
++        QSignalSpy spy(m_rep.data(), &MyInterfaceReplica::enum1Changed);
+         QVERIFY(advanceSpy.wait());
+ 
+         QCOMPARE(spy.count(), 2);
+diff --git a/tests/auto/integration_multiprocess/server/main.cpp b/tests/auto/integration_multiprocess/server/main.cpp
+index 3dfd0bd..c4e40e8 100644
+--- a/tests/auto/integration_multiprocess/server/main.cpp
++++ b/tests/auto/integration_multiprocess/server/main.cpp
+@@ -56,7 +56,7 @@ private Q_SLOTS:
+ 
+         qDebug() << "Waiting for incoming connections";
+ 
+-        QSignalSpy waitForStartedSpy(&myTestServer, SIGNAL(startedChanged(bool)));
++        QSignalSpy waitForStartedSpy(&myTestServer, &MyTestServer::startedChanged);
+         QVERIFY(waitForStartedSpy.isValid());
+         QVERIFY(waitForStartedSpy.wait());
+         QCOMPARE(waitForStartedSpy.value(0).value(0).toBool(), true);
+diff --git a/tests/auto/modelview/modelview.pro b/tests/auto/modelview/modelview.pro
+index 6d94fff..c6cafbb 100644
+--- a/tests/auto/modelview/modelview.pro
++++ b/tests/auto/modelview/modelview.pro
+@@ -4,7 +4,7 @@ QT += testlib remoteobjects
+ #QT -= gui
+ 
+ SOURCES += $$PWD/tst_modelview.cpp $$PWD/modeltest.cpp
+-HEADERS += $$PWD/modeltest.h
++HEADERS += $$PWD/modeltest.h $$PWD/../shared/model_utilities.h
+ 
+ contains(QT_CONFIG, c++11): CONFIG += c++11
+ 
+diff --git a/tests/auto/modelview/tst_modelview.cpp b/tests/auto/modelview/tst_modelview.cpp
+index 43c36c2..a4064a9 100644
+--- a/tests/auto/modelview/tst_modelview.cpp
++++ b/tests/auto/modelview/tst_modelview.cpp
+@@ -41,37 +41,6 @@
+ 
+ namespace {
+ 
+-template <class Storage>
+-bool waitForSignal(QVector<Storage> *storage, QSignalSpy *spy)
+-{
+-    if (!storage || !spy)
+-        return false;
+-    const int maxRuns = 10;
+-    int runs = 0;
+-    const int storageSize = storage->size();
+-    QVector<Storage> rowsToRemove;
+-    while (runs < maxRuns) {
+-        ++runs;
+-        if (spy->wait() && !spy->isEmpty()){
+-
+-            for (const Storage &row : qAsConst(*storage)) {
+-                for (int i = 0; i < spy->size(); ++i) {
+-                    const QList<QVariant> &signal = spy->at(i);
+-                    if (row.match(signal)) {
+-                        rowsToRemove.append(row);
+-                        break;
+-                    }
+-                }
+-            }
+-            for (const Storage &row : qAsConst(rowsToRemove))
+-                storage->removeAll(row);
+-            if (storage->isEmpty())
+-                break;
+-        }
+-    }
+-    return storage->isEmpty() && spy->size() == storageSize;
+-}
+-
+ QList<QStandardItem*> createInsertionChildren(int num, const QString& name, const QColor &background)
+ {
+     QList<QStandardItem*> children;
+@@ -83,40 +52,61 @@ QList<QStandardItem*> createInsertionChildren(int num, const QString& name, cons
+     return children;
+ }
+ 
+-struct InsertedRow
++class RowsWatcher : public WaitHelper
+ {
+-    InsertedRow(const QModelIndex &index = QModelIndex(), int start = -1, int end = -1)
+-        : m_index(index)
+-        , m_start(start)
+-        , m_end(end){}
+-    bool match(const QList<QVariant> &signal) const
++public:
++    RowsWatcher(const QAbstractItemModel *model, int expectedRowsCount)
++        : WaitHelper(), m_model(model), m_expectedRowsCount(expectedRowsCount)
+     {
+-        if (signal.size() != 3)
+-            return false;
+-        const bool matchingTypes = signal[0].type() == QVariant::nameToType("QModelIndex")
+-                                   && signal[1].type() == QVariant::nameToType("int")
+-                                   && signal[2].type() == QVariant::nameToType("int");
+-        if (!matchingTypes)
+-            return false;
+-        const QModelIndex otherIndex = signal[0].value<QModelIndex>();
+-        const int otherStart = signal[1].value<int>();
+-        const int otherEnd = signal[2].value<int>();
+-        return compareIndices(m_index, otherIndex) && (m_start == otherStart) && (m_end == otherEnd);
++        connect(m_model, &QAbstractItemModel::rowsInserted, this,
++                [this](const QModelIndex &parent, int first, int last) {
++                    const auto columnCount = m_model->columnCount(parent);
++                    for (int row = first; row <= last; ++row) {
++                        for (int column = 0; column < columnCount; ++column)
++                            m_changedData.append(m_model->index(row, column, parent));
++                    }
++                    onNumRowsChanged(parent, first, last);
++                });
++
++        connect(m_model, &QAbstractItemModel::rowsRemoved, this, &RowsWatcher::onNumRowsChanged);
+     }
+ 
+-    bool operator==(const QList<QVariant> &signal) const
++    void onNumRowsChanged(const QModelIndex &parent, int first, int last)
+     {
+-        return match(signal);
++        const auto compare = [=](const RowData &row) {
++            return (row.m_start == first && row.m_end == last
++                    && compareIndices(row.m_index, parent));
++        };
++        QVERIFY(std::find_if(m_pendingRows.begin(), m_pendingRows.end(), compare)
++                != m_pendingRows.end());
++
++        m_currentRowsCount += last - first + 1;
++        if (m_currentRowsCount == m_expectedRowsCount)
++            finish();
+     }
+ 
+-    bool operator==(const InsertedRow &other) const
++    void scheduleRowsToWatch(const QModelIndex &index, int start, int end)
+     {
+-        return m_index == other.m_index && m_start == other.m_start && m_end == other.m_end;
++        m_pendingRows.push_back(RowData(index, start, end));
+     }
+ 
+-    QModelIndex m_index;
+-    int m_start;
+-    int m_end;
++    QVector<QModelIndex> changedData() const { return m_changedData; }
++
++private:
++    struct RowData
++    {
++        RowData(const QModelIndex &idx = QModelIndex(), int s = -1, int e = -1)
++            : m_index(idx), m_start(s), m_end(e) {}
++        QModelIndex m_index;
++        int m_start;
++        int m_end;
++    };
++
++    const QAbstractItemModel *m_model;
++    QVector<RowData> m_pendingRows;
++    QVector<QModelIndex> m_changedData;
++    int m_currentRowsCount = 0;
++    const int m_expectedRowsCount;
+ };
+ 
+ QTextStream cout(stdout, QIODevice::WriteOnly);
+@@ -321,14 +311,14 @@ int getRandomNumber(int min, int max)
+     return res;
+ }
+ 
+-class FetchData : public QObject
++class FetchData : public WaitHelper
+ {
+-    Q_OBJECT
+ public:
+-    FetchData(const QAbstractItemModelReplica *replica) : QObject(), m_replica(replica), isFinished(false) {
++    FetchData(const QAbstractItemModelReplica *replica) : WaitHelper(), m_replica(replica)
++    {
+         if (!m_replica->isInitialized()) {
+             QEventLoop l;
+-            connect(m_replica, SIGNAL(initialized()), &l, SLOT(quit()));
++            connect(m_replica, &QAbstractItemModelReplica::initialized, &l, &QEventLoop::quit);
+             l.exec();
+         }
+ 
+@@ -336,6 +326,18 @@ public:
+         connect(m_replica, &QAbstractItemModelReplica::rowsInserted, this, &FetchData::rowsInserted);
+     }
+ 
++    bool fetchAndWait(int timeout = 15000)
++    {
++        addAll();
++        fetch();
++        return wait(timeout);
++    }
++
++private:
++    const QAbstractItemModelReplica *m_replica;
++    QHash<QPersistentModelIndex, QVector<int>> m_pending;
++    QSet<QPersistentModelIndex> m_waitForInsertion;
++
+     void addData(const QModelIndex &index, const QVector<int> &roles)
+     {
+         for (int role : roles) {
+@@ -371,9 +373,8 @@ public:
+ 
+     void fetch()
+     {
+-        isFinished = m_pending.isEmpty() && m_waitForInsertion.isEmpty();
+-        if (isFinished) {
+-            emitFetched();
++        if (m_pending.isEmpty() && m_waitForInsertion.isEmpty()) {
++            finish();
+             return;
+         }
+         QHash<QPersistentModelIndex, QVector<int> > pending(m_pending);
+@@ -387,30 +388,6 @@ public:
+         }
+     }
+ 
+-    bool fetchAndWait(int timeout = 15000)
+-    {
+-        QEventLoop l;
+-        QTimer::singleShot(timeout, &l, &QEventLoop::quit);
+-        connect(this, &FetchData::fetched, &l, &QEventLoop::quit);
+-        fetch();
+-        l.exec();
+-        return isFinished;
+-    }
+-
+-signals:
+-    void fetched();
+-
+-private:
+-    const QAbstractItemModelReplica *m_replica;
+-    QHash<QPersistentModelIndex, QVector<int> > m_pending;
+-    QSet<QPersistentModelIndex> m_waitForInsertion;
+-    bool isFinished;
+-
+-    void emitFetched()
+-    {
+-        QTimer::singleShot(0, this, SIGNAL(fetched()));
+-    }
+-
+     void rowsInserted(const QModelIndex &parent, int first, int last)
+     {
+         static QVector<int> rolesV;
+@@ -488,10 +465,8 @@ private:
+             }
+         }
+ 
+-        isFinished = m_pending.isEmpty() && m_waitForInsertion.isEmpty();
+-        if (isFinished) {
+-            emitFetched();
+-        }
++        if (m_pending.isEmpty() && m_waitForInsertion.isEmpty())
++            finish();
+     }
+ };
+ 
+@@ -544,6 +519,7 @@ private slots:
+     void testSelectionFromSource();
+     void testChildSelection();
+ 
++    void testCacheData_data();
+     void testCacheData();
+ 
+     void cleanup();
+@@ -608,6 +584,12 @@ void TestModelView::setup_models(QRemoteObjectHost &basicServer, QRemoteObjectNo
+     port += 2;
+ }
+ 
++#ifdef SLOW_MODELTEST
++#define MODELTEST_WAIT_TIME 25000
++#else
++#define MODELTEST_WAIT_TIME
++#endif
++
+ void TestModelView::testEmptyModel()
+ {
+     _SETUP_TEST_
+@@ -619,8 +601,7 @@ void TestModelView::testEmptyModel()
+     model->setRootCacheSize(1000);
+ 
+     FetchData f(model.data());
+-    f.addAll();
+-    QVERIFY(f.fetchAndWait());
++    QVERIFY(f.fetchAndWait(MODELTEST_WAIT_TIME));
+ 
+     compareData(&emptyModel, model.data());
+ }
+@@ -631,8 +612,7 @@ void TestModelView::testInitialData()
+     QScopedPointer<QAbstractItemModelReplica> model(client.acquireModel("test"));
+ 
+     FetchData f(model.data());
+-    f.addAll();
+-    QVERIFY(f.fetchAndWait());
++    QVERIFY(f.fetchAndWait(MODELTEST_WAIT_TIME));
+ 
+     compareData(&m_sourceModel, model.data());
+ }
+@@ -643,8 +623,7 @@ void TestModelView::testInitialDataTree()
+     QScopedPointer<QAbstractItemModelReplica> model(client.acquireModel("test"));
+ 
+     FetchData f(model.data());
+-    f.addAll();
+-    QVERIFY(f.fetchAndWait());
++    QVERIFY(f.fetchAndWait(MODELTEST_WAIT_TIME));
+ 
+     compareTreeData(&m_sourceModel, model.data());
+ }
+@@ -655,11 +634,10 @@ void TestModelView::testHeaderData()
+     QScopedPointer<QAbstractItemModelReplica> model(client.acquireModel("test"));
+ 
+     FetchData f(model.data());
+-    f.addAll();
+-    QVERIFY(f.fetchAndWait());
++    QVERIFY(f.fetchAndWait(MODELTEST_WAIT_TIME));
+ 
+     // ask for all Data members first, so we don't have to wait for update signals
+-    QSignalSpy spyHeader(model.data(), SIGNAL(headerDataChanged(Qt::Orientation,int,int)));
++    QSignalSpy spyHeader(model.data(), &QAbstractItemModelReplica::headerDataChanged);
+     for (int i = 0; i < m_sourceModel.rowCount(); ++i)
+         model->headerData(i, Qt::Vertical, Qt::DisplayRole);
+     for (int i = 0; i < m_sourceModel.columnCount(); ++i)
+@@ -678,11 +656,10 @@ void TestModelView::testDataChangedTree()
+     QScopedPointer<QAbstractItemModelReplica> model(client.acquireModel("test"));
+ 
+     FetchData f(model.data());
+-    f.addAll();
+-    QVERIFY(f.fetchAndWait());
++    QVERIFY(f.fetchAndWait(MODELTEST_WAIT_TIME));
+ 
+     compareTreeData(&m_sourceModel, model.data());
+-    QSignalSpy dataChangedSpy(model.data(), SIGNAL(dataChanged(QModelIndex,QModelIndex,QVector<int>)));
++    QSignalSpy dataChangedSpy(model.data(), &QAbstractItemModelReplica::dataChanged);
+     QSet<int> expected;
+     for (int i = 10; i < 20; ++i) {
+         const QModelIndex parent = m_sourceModel.index(i,0);
+@@ -726,10 +703,9 @@ void TestModelView::testFlags()
+     QScopedPointer<QAbstractItemModelReplica> model(client.acquireModel("test"));
+ 
+     FetchData f(model.data());
+-    f.addAll();
+-    QVERIFY(f.fetchAndWait());
++    QVERIFY(f.fetchAndWait(MODELTEST_WAIT_TIME));
+ 
+-    QSignalSpy dataChangedSpy(model.data(), SIGNAL(dataChanged(QModelIndex,QModelIndex,QVector<int>)));
++    QSignalSpy dataChangedSpy(model.data(),  &QAbstractItemModelReplica::dataChanged);
+     for (int i = 10; i < 20; ++i) {
+         QStandardItem* firstItem = m_sourceModel.item(i, 0);
+         QStandardItem* secondItem = m_sourceModel.item(i, 1);
+@@ -752,8 +728,7 @@ void TestModelView::testDataChanged()
+     QScopedPointer<QAbstractItemModelReplica> model(client.acquireModel("test"));
+ 
+     FetchData f(model.data());
+-    f.addAll();
+-    QVERIFY(f.fetchAndWait());
++    QVERIFY(f.fetchAndWait(MODELTEST_WAIT_TIME));
+ 
+     QSignalSpy dataChangedSpy(model.data(), SIGNAL(dataChanged(QModelIndex,QModelIndex,QVector<int>)));
+     for (int i = 10; i < 20; ++i)
+@@ -775,59 +750,25 @@ void TestModelView::testDataInsertion()
+     QScopedPointer<QAbstractItemModelReplica> model(client.acquireModel("test"));
+ 
+     FetchData f(model.data());
+-    f.addAll();
+-    QVERIFY(f.fetchAndWait());
++    QVERIFY(f.fetchAndWait(MODELTEST_WAIT_TIME));
+ 
++    const int insertedRowsCount = 9;
++    RowsWatcher watcher(model.data(), insertedRowsCount);
+     QVector<QModelIndex> pending;
+ 
+-    QSignalSpy dataChangedSpy(model.data(), SIGNAL(dataChanged(QModelIndex,QModelIndex,QVector<int>)));
+-    QVector<InsertedRow> insertedRows;
+-    QSignalSpy rowSpy(model.data(), SIGNAL(rowsInserted(QModelIndex,int,int)));
+-    m_sourceModel.insertRows(2, 9);
+-    insertedRows.append(InsertedRow(QModelIndex(), 2, 10));
+-    const int maxRuns = 10;
+-    int runs = 0;
+-    QVector<InsertedRow> rowsToRemove;
+-    while (runs < maxRuns) {
+-        ++runs;
+-        if (rowSpy.wait() && !rowSpy.isEmpty()){
+-
+-            for (const InsertedRow &irow : qAsConst(insertedRows)) {
+-                for (int i = 0; i < rowSpy.size(); ++i) {
+-                    const QList<QVariant> &signal = rowSpy.at(i);
+-                    if (irow.match(signal)) {
+-                        //fetch the data of the inserted index
+-                        const QModelIndex &parent = signal.at(0).value<QModelIndex>();
+-                        const int start = signal.at(1).value<int>();
+-                        const int end = signal.at(2).value<int>();
+-                        const int columnCount = model->columnCount(parent);
+-                        for (int row = start; row <= end; ++row)
+-                            for (int column = 0; column < columnCount; ++column) {
+-                                model->data(model->index(row, column, parent), Qt::DisplayRole);
+-                                model->data(model->index(row, column, parent), Qt::BackgroundRole);
+-                                pending.append(model->index(row, column, parent));
+-                            }
+-                        rowsToRemove.append(irow);
+-                        break;
+-                    }
+-                }
+-            }
+-            for (const InsertedRow &irow : qAsConst(rowsToRemove))
+-                insertedRows.removeAll(irow);
+-            if (insertedRows.isEmpty())
+-                break;
+-        }
++    m_sourceModel.insertRows(2, insertedRowsCount);
+ 
+-    }
+-    QCOMPARE(rowSpy.count(), 1);
++    watcher.scheduleRowsToWatch(QModelIndex(), 2, 2 + insertedRowsCount - 1);
++    QVERIFY(watcher.wait());
+     QCOMPARE(m_sourceModel.rowCount(), model->rowCount());
+ 
++    pending.append(watcher.changedData());
++
+     // change one row to check for inconsistencies
+     m_sourceModel.setData(m_sourceModel.index(0, 1), QColor(Qt::green), Qt::BackgroundRole);
+     m_sourceModel.setData(m_sourceModel.index(0, 1), QLatin1String("foo"), Qt::DisplayRole);
+     pending.append(model->index(0, 1));
+-    WaitForDataChanged w(pending, &dataChangedSpy);
+-
++    WaitForDataChanged w(model.data(), pending);
+ 
+     QVERIFY(w.wait());
+     compareData(&m_sourceModel, model.data());
+@@ -839,30 +780,26 @@ void TestModelView::testDataInsertionTree()
+     QScopedPointer<QAbstractItemModelReplica> model(client.acquireModel("test"));
+ 
+     FetchData f(model.data());
+-    f.addAll();
+-    QVERIFY(f.fetchAndWait());
+-
+-    const QVector<int> roles = model->availableRoles();
++    QVERIFY(f.fetchAndWait(MODELTEST_WAIT_TIME));
+ 
+-    QVector<InsertedRow> insertedRows;
+-    QSignalSpy rowSpy(model.data(), SIGNAL(rowsInserted(QModelIndex,int,int)));
++    const int insertedRowsCount = 9;
++    const int insertedChildRowsCount = 4;
++    RowsWatcher watcher(model.data(), insertedRowsCount + insertedChildRowsCount);
+ 
+-    QSignalSpy dataChangedSpy(model.data(), SIGNAL(dataChanged(QModelIndex,QModelIndex,QVector<int>)));
+     QVector<QModelIndex> pending;
+ 
+-    for (int i = 0; i < 9; ++ i) {
+-        insertedRows.append(InsertedRow(QModelIndex(), 2 + i, 2 + i));
++    for (int i = 0; i < insertedRowsCount; ++i) {
++        watcher.scheduleRowsToWatch(QModelIndex(), 2 + i, 2 + i);
+         m_sourceModel.insertRow(2 + i, createInsertionChildren(2, QStringLiteral("insertedintree"), Qt::darkRed));
+         const QModelIndex childIndex = m_sourceModel.index(2 + i, 0);
+         const QModelIndex childIndex2 = m_sourceModel.index(2 + i, 1);
+         pending.append(childIndex);
+         pending.append(childIndex2);
+-
+     }
+     const QModelIndex parent = m_sourceModel.index(10, 0);
+     QStandardItem* parentItem = m_sourceModel.item(10, 0);
+-    for (int i = 0; i < 4; ++ i) {
+-        insertedRows.append(InsertedRow(parent, i, i));
++    for (int i = 0; i < insertedChildRowsCount; ++i) {
++        watcher.scheduleRowsToWatch(parent, i, i);
+         parentItem->insertRow(i, createInsertionChildren(2, QStringLiteral("insertedintreedeep"), Qt::darkCyan));
+         const QModelIndex childIndex = m_sourceModel.index(0, 0, parent);
+         const QModelIndex childIndex2 = m_sourceModel.index(0, 1, parent);
+@@ -872,51 +809,19 @@ void TestModelView::testDataInsertionTree()
+         pending.append(childIndex2);
+     }
+ 
+-    const int maxRuns = 10;
+-    int runs = 0;
+-    QVector<InsertedRow> rowsToRemove;
+-    while (runs < maxRuns) {
+-        ++runs;
+-        if (rowSpy.wait() && !rowSpy.isEmpty()){
+-
+-            for (const InsertedRow &irow : qAsConst(insertedRows)) {
+-                for (int i = 0; i < rowSpy.size(); ++i) {
+-                    const QList<QVariant> &signal = rowSpy.at(i);
+-                    if (irow.match(signal)) {
+-                        //fetch the data of the inserted index
+-                        const QModelIndex &parent = signal.at(0).value<QModelIndex>();
+-                        const int start = signal.at(1).value<int>();
+-                        const int end = signal.at(2).value<int>();
+-                        const int columnCount = model->columnCount(parent);
+-                        for (int row = start; row <= end; ++row)
+-                            for (int column = 0; column < columnCount; ++column) {
+-                                model->data(model->index(row, column, parent), Qt::DisplayRole);
+-                                model->data(model->index(row, column, parent), Qt::BackgroundRole);
+-                                pending.append(model->index(row, column, parent));
+-                            }
+-                        rowsToRemove.append(irow);
+-                        break;
+-                    }
+-                }
+-            }
+-            for (const InsertedRow &irow : qAsConst(rowsToRemove))
+-                insertedRows.removeAll(irow);
+-            if (insertedRows.isEmpty())
+-                break;
+-        }
+-
+-    }
+-    QVERIFY(rowSpy.count() == 13);
++    QVERIFY(watcher.wait());
+     QCOMPARE(m_sourceModel.rowCount(), model->rowCount());
+ 
++    pending.append(watcher.changedData());
++
+     // change one row to check for inconsistencies
+ 
+     pending << m_sourceModel.index(0, 0, parent);
+-    WaitForDataChanged w(pending, &dataChangedSpy);
++    WaitForDataChanged w(model.data(), pending);
+     m_sourceModel.setData(m_sourceModel.index(0, 0, parent), QColor(Qt::green), Qt::BackgroundRole);
+     m_sourceModel.setData(m_sourceModel.index(0, 0, parent), QLatin1String("foo"), Qt::DisplayRole);
+ 
+-    w.wait();
++    QVERIFY(w.wait());
+ 
+     compareTreeData(&m_sourceModel, model.data());
+ }
+@@ -928,36 +833,35 @@ void TestModelView::testDataRemoval()
+     qputenv("QTRO_NODES_CACHE_SIZE", "1000");
+     model->setRootCacheSize(1000);
+     FetchData f(model.data());
+-    f.addAll();
+-    QVERIFY(f.fetchAndWait());
+-
+-    QVector<InsertedRow> removedRows;
+-    QSignalSpy rowSpy(model.data(), SIGNAL(rowsRemoved(QModelIndex,int,int)));
+-
+-
+-    const QModelIndex parent = m_sourceModel.index(10, 0);
+-    m_sourceModel.removeRows(0, 4, parent);
+-    removedRows.append(InsertedRow(parent, 0, 3));
+-    QVERIFY(waitForSignal(&removedRows, &rowSpy));
+-    rowSpy.clear();
+-    QCOMPARE(m_sourceModel.rowCount(parent), model->rowCount(model->index(10, 0)));
+-    m_sourceModel.removeRows(2, 9);
+-    removedRows.append(InsertedRow(QModelIndex(), 2, 10));
+-    QVERIFY(waitForSignal(&removedRows, &rowSpy));
+-
++    QVERIFY(f.fetchAndWait(MODELTEST_WAIT_TIME));
+ 
+-    QCOMPARE(m_sourceModel.rowCount(), model->rowCount());
++    const QPersistentModelIndex parent = m_sourceModel.index(10, 0);
++    {
++        const int removedRowsCount = 3;
++        RowsWatcher watcher(model.data(), removedRowsCount);
++        m_sourceModel.removeRows(0, removedRowsCount, parent);
++        watcher.scheduleRowsToWatch(parent, 0, removedRowsCount - 1);
++        QVERIFY(watcher.wait());
++        QCOMPARE(m_sourceModel.rowCount(parent), model->rowCount(model->index(10, 0)));
++    }
++    {
++        const int removedRowsCount = 8;
++        RowsWatcher watcher(model.data(), removedRowsCount);
++        m_sourceModel.removeRows(2, removedRowsCount);
++        watcher.scheduleRowsToWatch(QModelIndex(), 2, 2 + removedRowsCount - 1);
++        QVERIFY(watcher.wait());
++        QCOMPARE(m_sourceModel.rowCount(), model->rowCount());
++    }
+ 
+     // change one row to check for inconsistencies
+ 
+     QVector<QModelIndex> pending;
+-    QSignalSpy dataChangedSpy(model.data(), SIGNAL(dataChanged(QModelIndex,QModelIndex,QVector<int>)));
+     pending << m_sourceModel.index(0, 0, parent);
+-    WaitForDataChanged w(pending, &dataChangedSpy);
++    WaitForDataChanged w(model.data(), pending);
+     m_sourceModel.setData(m_sourceModel.index(0, 0, parent), QColor(Qt::green), Qt::BackgroundRole);
+     m_sourceModel.setData(m_sourceModel.index(0, 0, parent), QLatin1String("foo"), Qt::DisplayRole);
+ 
+-    w.wait();
++    QVERIFY(w.wait());
+ 
+     compareTreeData(&m_sourceModel, model.data());
+ }
+@@ -969,8 +873,7 @@ void TestModelView::testRoleNames()
+     // Set a bigger cache enough to keep all the data otherwise the last test will fail
+     repModel->setRootCacheSize(1500);
+     FetchData f(repModel.data());
+-    f.addAll();
+-    QVERIFY(f.fetchAndWait());
++    QVERIFY(f.fetchAndWait(MODELTEST_WAIT_TIME));
+ 
+     // test custom role names
+     QCOMPARE(repModel.data()->roleNames(), m_listModel.roleNames());
+@@ -1011,18 +914,11 @@ void TestModelView::testServerInsertDataTree()
+     QTRY_COMPARE(testTreeModel.rowCount(), model->rowCount());
+ 
+     FetchData f(model.data());
+-    f.addAll();
+-    QVERIFY(f.fetchAndWait());
++    QVERIFY(f.fetchAndWait(MODELTEST_WAIT_TIME));
+ 
+     compareData(&testTreeModel, model.data());
+ }
+ 
+-#ifdef SLOW_MODELTEST
+-#define MODELTEST_WAIT_TIME 25000
+-#else
+-#define MODELTEST_WAIT_TIME
+-#endif
+-
+ void TestModelView::testModelTest()
+ {
+     _SETUP_TEST_
+@@ -1030,7 +926,6 @@ void TestModelView::testModelTest()
+     ModelTest test(repModel.data());
+ 
+     FetchData f(repModel.data());
+-    f.addAll();
+     QVERIFY(f.fetchAndWait(MODELTEST_WAIT_TIME));
+     Q_UNUSED(test);
+ }
+@@ -1041,8 +936,7 @@ void TestModelView::testSortFilterModel()
+     QScopedPointer<QAbstractItemModelReplica> repModel( client.acquireModel(QStringLiteral("test")));
+ 
+     FetchData f(repModel.data());
+-    f.addAll();
+-    QVERIFY(f.fetchAndWait());
++    QVERIFY(f.fetchAndWait(MODELTEST_WAIT_TIME));
+ 
+     QSortFilterProxyModel clientSort;
+     clientSort.setSourceModel(repModel.data());
+@@ -1060,13 +954,10 @@ void TestModelView::testSetData()
+     QScopedPointer<QAbstractItemModelReplica> model(client.acquireModel("test"));
+ 
+     FetchData f(model.data());
+-    f.addAll();
+-    QVERIFY(f.fetchAndWait());
++    QVERIFY(f.fetchAndWait(MODELTEST_WAIT_TIME));
+     compareTreeData(&m_sourceModel, model.data(), model->availableRoles());
+ 
+     //fetched and verified initial state, now setData on the client
+-    QSignalSpy dataChangedSpy(&m_sourceModel, SIGNAL(dataChanged(QModelIndex,QModelIndex,QVector<int>)));
+-    QSignalSpy dataChangedReplicaSpy(model.data(), SIGNAL(dataChanged(QModelIndex,QModelIndex,QVector<int>)));
+     QVector<QModelIndex> pending;
+     QVector<QModelIndex> pendingReplica;
+     for (int row = 0, numRows = model->rowCount(); row < numRows; ++row) {
+@@ -1078,9 +969,9 @@ void TestModelView::testSetData()
+             pendingReplica.append(model->index(row, column));
+         }
+     }
+-    WaitForDataChanged waiter(pending, &dataChangedSpy);
++    WaitForDataChanged waiter(&m_sourceModel, pending);
+     QVERIFY(waiter.wait());
+-    WaitForDataChanged waiterReplica(pendingReplica, &dataChangedReplicaSpy);
++    WaitForDataChanged waiterReplica(model.data(), pendingReplica);
+     QVERIFY(waiterReplica.wait());
+     compareData(&m_sourceModel, model.data());
+ }
+@@ -1091,13 +982,10 @@ void TestModelView::testSetDataTree()
+     QScopedPointer<QAbstractItemModelReplica> model(client.acquireModel("test"));
+ 
+     FetchData f(model.data());
+-    f.addAll();
+-    QVERIFY(f.fetchAndWait());
++    QVERIFY(f.fetchAndWait(MODELTEST_WAIT_TIME));
+     compareTreeData(&m_sourceModel, model.data(), model->availableRoles());
+ 
+     //fetched and verified initial state, now setData on the client
+-    QSignalSpy dataChangedSpy(&m_sourceModel, SIGNAL(dataChanged(QModelIndex,QModelIndex,QVector<int>)));
+-    QSignalSpy dataChangedReplicaSpy(model.data(), SIGNAL(dataChanged(QModelIndex,QModelIndex,QVector<int>)));
+     QVector<QModelIndex> pending;
+     QVector<QModelIndex> pendingReplica;
+ 
+@@ -1125,9 +1013,9 @@ void TestModelView::testSetDataTree()
+             }
+         }
+     }
+-    WaitForDataChanged waiter(pending, &dataChangedSpy);
++    WaitForDataChanged waiter(&m_sourceModel, pending);
+     QVERIFY(waiter.wait());
+-    WaitForDataChanged waiterReplica(pendingReplica, &dataChangedReplicaSpy);
++    WaitForDataChanged waiterReplica(model.data(), pendingReplica);
+     QVERIFY(waiterReplica.wait());
+     compareData(&m_sourceModel, model.data());
+ }
+@@ -1146,8 +1034,7 @@ void TestModelView::testSelectionFromReplica()
+     QItemSelectionModel *replicaSelectionModel = model->selectionModel();
+ 
+     FetchData f(model.data());
+-    f.addAll();
+-    QVERIFY(f.fetchAndWait());
++    QVERIFY(f.fetchAndWait(MODELTEST_WAIT_TIME));
+ 
+     replicaSelectionModel->setCurrentIndex(model->index(1,0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Current);
+     QTRY_COMPARE(selectionModel.currentIndex().row(), 1);
+@@ -1167,22 +1054,30 @@ void TestModelView::testSelectionFromSource()
+     QItemSelectionModel *replicaSelectionModel = model->selectionModel();
+ 
+     FetchData f(model.data());
+-    f.addAll();
+-    QVERIFY(f.fetchAndWait());
++    QVERIFY(f.fetchAndWait(MODELTEST_WAIT_TIME));
+ 
+     selectionModel.setCurrentIndex(simpleModel.index(1,0), QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Current);
+     QTRY_COMPARE(replicaSelectionModel->currentIndex().row(), 1);
+ }
+ 
++void TestModelView::testCacheData_data()
++{
++    QTest::addColumn<QVector<int>>("roles");
++
++    QTest::newRow("empty") << QVector<int> {};
++    QTest::newRow("all") << QVector<int> { Qt::UserRole, Qt::UserRole + 1 };
++}
++
+ void TestModelView::testCacheData()
+ {
++    QFETCH(QVector<int>, roles);
++
+     _SETUP_TEST_
+-    QVector<int> roles = QVector<int>() << Qt::UserRole << Qt::UserRole + 1;
+     QScopedPointer<QAbstractItemModelReplica> model(client.acquireModel("testRoleNames", QtRemoteObjects::PrefetchData, roles));
+     model->setRootCacheSize(1000);
+ 
+     QEventLoop l;
+-    connect(model.data(), SIGNAL(initialized()), &l, SLOT(quit()));
++    connect(model.data(), &QAbstractItemModelReplica::initialized, &l, &QEventLoop::quit);
+     l.exec();
+ 
+     compareData(&m_listModel, model.data());
+diff --git a/tests/auto/proxy/proxy.pro b/tests/auto/proxy/proxy.pro
+index c4e0a07..9f3d018 100644
+--- a/tests/auto/proxy/proxy.pro
++++ b/tests/auto/proxy/proxy.pro
+@@ -4,6 +4,7 @@ QT += testlib remoteobjects
+ QT -= gui
+ 
+ SOURCES += tst_proxy.cpp
++HEADERS += $$PWD/../shared/model_utilities.h
+ 
+ REPC_MERGED += engine.rep
+ REPC_MERGED += subclass.rep
 diff --git a/tests/auto/proxy/tst_proxy.cpp b/tests/auto/proxy/tst_proxy.cpp
-index aa914bc..c803e49 100644
+index aa914bc..bfe7cf0 100644
 --- a/tests/auto/proxy/tst_proxy.cpp
 +++ b/tests/auto/proxy/tst_proxy.cpp
-@@ -238,8 +238,7 @@ void ProxyTest::testProxy()
+@@ -142,8 +142,8 @@ void ProxyTest::testProxy()
+         QCOMPARE((EngineReplica::EngineType)rep->type(), EngineReplica::Gas);
+ 
+         //Change Replica and make sure change propagates to source
+-        QSignalSpy sourceSpy(&engine, SIGNAL(rpmChanged(int)));
+-        QSignalSpy replicaSpy(rep, SIGNAL(rpmChanged(int)));
++        QSignalSpy sourceSpy(&engine, &EngineSimpleSource::rpmChanged);
++        QSignalSpy replicaSpy(rep, &EngineReplica::rpmChanged);
+         rep->pushRpm(42);
+         sourceSpy.wait();
+         QCOMPARE(sourceSpy.count(), 1);
+@@ -169,7 +169,7 @@ void ProxyTest::testProxy()
+         QCOMPARE(typeMeta.read(replica.data()).value<EngineReplica::EngineType>(), EngineReplica::Gas);
+ 
+         //Change Replica and make sure change propagates to source
+-        QSignalSpy sourceSpy(&engine, SIGNAL(rpmChanged(int)));
++        QSignalSpy sourceSpy(&engine, &EngineSimpleSource::rpmChanged);
+         QSignalSpy replicaSpy(replica.data(), QByteArray(QByteArrayLiteral("2")+rpmMeta.notifySignal().methodSignature().constData()));
+ 
+         const int rpmPushIndex = metaObject->indexOfMethod("pushRpm(int)");
+@@ -191,7 +191,7 @@ void ProxyTest::testProxy()
+     // Make sure disabling the Source cascades the state change
+     bool res = host.disableRemoting(&engine);
+     Q_ASSERT(res);
+-    QSignalSpy stateSpy(replica.data(), SIGNAL(stateChanged(QRemoteObjectReplica::State,QRemoteObjectReplica::State)));
++    QSignalSpy stateSpy(replica.data(), &QRemoteObjectReplica::stateChanged);
+     stateSpy.wait();
+     QCOMPARE(stateSpy.count(), 1);
+     QCOMPARE(replica->state(), QRemoteObjectReplica::Suspect);
+@@ -236,10 +236,8 @@ void ProxyTest::testProxy()
+                 roles.insert(it.key());
+             QCOMPARE(availableRoles, roles);
          }
-         QSignalSpy dataSpy(rep->tracks(), SIGNAL(dataChanged(QModelIndex,QModelIndex,QVector<int>)));
+-        QSignalSpy dataSpy(rep->tracks(), SIGNAL(dataChanged(QModelIndex,QModelIndex,QVector<int>)));
          QVector<QModelIndex> pending;
 -        QTest::qWait(100);
 -        QCOMPARE(rep->tracks()->rowCount(), model.rowCount());
@@ -25,9 +2401,34 @@ index aa914bc..c803e49 100644
          for (int i = 0; i < rep->tracks()->rowCount(); i++)
          {
              // We haven't received any data yet
-@@ -315,8 +314,7 @@ void ProxyTest::testProxy()
+@@ -248,10 +246,10 @@ void ProxyTest::testProxy()
+             pending.append(index);
+         }
+         if (useProxy) { // A first batch of updates will be the empty proxy values
+-            WaitForDataChanged w(pending, &dataSpy);
++            WaitForDataChanged w(rep->tracks(), pending);
+             QVERIFY(w.wait());
+         }
+-        WaitForDataChanged w(pending, &dataSpy);
++        WaitForDataChanged w(rep->tracks(), pending);
+         QVERIFY(w.wait());
+         for (int i = 0; i < rep->tracks()->rowCount(); i++)
+         {
+@@ -262,7 +260,7 @@ void ProxyTest::testProxy()
+         SubClassSimpleSource updatedSubclass;
+         const MyPOD updatedValue(-1, 123.456, QStringLiteral("Updated"));
+         updatedSubclass.setMyPOD(updatedValue);
+-        QSignalSpy replicaSpy(rep, SIGNAL(subClassChanged(SubClassReplica*)));
++        QSignalSpy replicaSpy(rep, &ParentClassReplica::subClassChanged);
+         parent.setSubClass(&updatedSubclass);
+         replicaSpy.wait();
+         QCOMPARE(replicaSpy.count(), 1);
+@@ -313,10 +311,9 @@ void ProxyTest::testProxy()
+             QCOMPARE(availableRoles, roles);
+         }
          QTRY_COMPARE(tracksReplica->isInitialized(), true);
-         QSignalSpy dataSpy(tracksReplica, SIGNAL(dataChanged(QModelIndex,QModelIndex,QVector<int>)));
+-        QSignalSpy dataSpy(tracksReplica, SIGNAL(dataChanged(QModelIndex,QModelIndex,QVector<int>)));
++        QSignalSpy dataSpy(tracksReplica, &QAbstractItemModelReplica::dataChanged);
          QVector<QModelIndex> pending;
 -        QTest::qWait(100);
 -        QCOMPARE(tracksReplica->rowCount(), model.rowCount());
@@ -35,7 +2436,20 @@ index aa914bc..c803e49 100644
          for (int i = 0; i < tracksReplica->rowCount(); i++)
          {
              // We haven't received any data yet
-@@ -386,7 +384,7 @@ void ProxyTest::testForwardProxy()
+@@ -325,10 +322,10 @@ void ProxyTest::testProxy()
+             pending.append(index);
+         }
+         if (useProxy) { // A first batch of updates will be the empty proxy values
+-            WaitForDataChanged w(pending, &dataSpy);
++            WaitForDataChanged w(tracksReplica, pending);
+             QVERIFY(w.wait());
+         }
+-        WaitForDataChanged w(pending, &dataSpy);
++        WaitForDataChanged w(tracksReplica, pending);
+         QVERIFY(w.wait());
+         for (int i = 0; i < tracksReplica->rowCount(); i++)
+         {
+@@ -386,7 +383,7 @@ void ProxyTest::testForwardProxy()
  
      // Setup Replica
      const QScopedPointer<EngineReplica> replica(remoteNode.acquire<EngineReplica>());
@@ -44,7 +2458,7 @@ index aa914bc..c803e49 100644
  
      // Compare Replica to Source
      QCOMPARE(replica->rpm(), engine.rpm());
-@@ -422,7 +420,7 @@ void ProxyTest::testReverseProxy()
+@@ -422,7 +419,7 @@ void ProxyTest::testReverseProxy()
  
      // Setup Replica
      const QScopedPointer<EngineReplica> replica(host.acquire<EngineReplica>());
@@ -53,3 +2467,216 @@ index aa914bc..c803e49 100644
  
      //Compare Replica to Source
      QCOMPARE(replica->rpm(), engine.rpm());
+@@ -453,8 +450,7 @@ void ProxyTest::testTopLevelModel()
+     QAbstractItemModelReplica *replica = client.acquireModel("trackList");
+     QSignalSpy tracksSpy(replica, &QAbstractItemModelReplica::initialized);
+     QVERIFY(tracksSpy.wait());
+-    QTest::qWait(100);
+-    QCOMPARE(replica->rowCount(), model.rowCount());
++    QTRY_COMPARE(replica->rowCount(), model.rowCount());
+ }
+ 
+ QTEST_MAIN(ProxyTest)
+diff --git a/tests/auto/proxy_multiprocess/client/main.cpp b/tests/auto/proxy_multiprocess/client/main.cpp
+index 89fe043..971d458 100644
+--- a/tests/auto/proxy_multiprocess/client/main.cpp
++++ b/tests/auto/proxy_multiprocess/client/main.cpp
+@@ -83,7 +83,7 @@ private Q_SLOTS:
+ 
+         qDebug() << "Verified expected initial states, sending start.";
+         QSignalSpy enumSpy(m_rep.data(), &ParentClassReplica::enum2);
+-        QSignalSpy advanceSpy(m_rep.data(), SIGNAL(advance()));
++        QSignalSpy advanceSpy(m_rep.data(), &ParentClassReplica::advance);
+         auto reply = m_rep->start();
+         QVERIFY(reply.waitForFinished());
+         QVERIFY(reply.error() == QRemoteObjectPendingCall::NoError);
+diff --git a/tests/auto/proxy_multiprocess/server/main.cpp b/tests/auto/proxy_multiprocess/server/main.cpp
+index 04682bc..99cf8c4 100644
+--- a/tests/auto/proxy_multiprocess/server/main.cpp
++++ b/tests/auto/proxy_multiprocess/server/main.cpp
+@@ -69,7 +69,7 @@ private Q_SLOTS:
+ 
+         qDebug() << "Waiting for incoming connections";
+ 
+-        QSignalSpy waitForStartedSpy(&parent, SIGNAL(startedChanged(bool)));
++        QSignalSpy waitForStartedSpy(&parent, &MyTestServer::startedChanged);
+         QVERIFY(waitForStartedSpy.isValid());
+         QVERIFY(waitForStartedSpy.wait());
+         QCOMPARE(waitForStartedSpy.value(0).value(0).toBool(), true);
+diff --git a/tests/auto/repc/signature/matchAndQuit/main.cpp b/tests/auto/repc/signature/matchAndQuit/main.cpp
+index 25b3241..d7e1764 100644
+--- a/tests/auto/repc/signature/matchAndQuit/main.cpp
++++ b/tests/auto/repc/signature/matchAndQuit/main.cpp
+@@ -42,7 +42,7 @@ private Q_SLOTS:
+         QRemoteObjectNode repNode;
+         repNode.connectToNode(QUrl(QStringLiteral("tcp://127.0.0.1:65214")));
+         QSharedPointer<TestClassReplica> rep(repNode.acquire<TestClassReplica>());
+-        QSignalSpy stateChangedSpy(rep.data(), SIGNAL(stateChanged(State,State)));
++        QSignalSpy stateChangedSpy(rep.data(), &QRemoteObjectReplica::stateChanged);
+         QVERIFY(rep->waitForSource());
+         QCOMPARE(rep->state(), QRemoteObjectReplica::Valid);
+ 
+diff --git a/tests/auto/repc/signature/state/main.cpp b/tests/auto/repc/signature/state/main.cpp
+index 8cba5f7..197a3d5 100644
+--- a/tests/auto/repc/signature/state/main.cpp
++++ b/tests/auto/repc/signature/state/main.cpp
+@@ -42,7 +42,7 @@ private Q_SLOTS:
+         QRemoteObjectNode repNode;
+         repNode.connectToNode(QUrl{QStringLiteral("tcp://127.0.0.1:65214")});
+         QSharedPointer<TestClassReplica> rep{repNode.acquire<TestClassReplica>()};
+-        QSignalSpy stateChangedSpy(rep.data(), SIGNAL(stateChanged(State,State)));
++        QSignalSpy stateChangedSpy(rep.data(), &QRemoteObjectReplica::stateChanged);
+         QTRY_COMPARE(rep->state(), QRemoteObjectReplica::SignatureMismatch);
+         QCOMPARE(stateChangedSpy.count(), 1);
+         auto args = stateChangedSpy.takeFirst();
+@@ -56,7 +56,7 @@ private Q_SLOTS:
+         QRemoteObjectNode repNode;
+         repNode.connectToNode(QUrl{QStringLiteral("tcp://127.0.0.1:65214")});
+         QSharedPointer<QRemoteObjectDynamicReplica> rep{repNode.acquireDynamic("TestClass")};
+-        QSignalSpy stateChangedSpy(rep.data(), SIGNAL(stateChanged(State,State)));
++        QSignalSpy stateChangedSpy(rep.data(), &QRemoteObjectReplica::stateChanged);
+         QTRY_COMPARE(rep->state(), QRemoteObjectReplica::Valid);
+         QCOMPARE(stateChangedSpy.count(), 1);
+         auto args = stateChangedSpy.takeFirst();
+diff --git a/tests/auto/restart/server/main.cpp b/tests/auto/restart/server/main.cpp
+index f4e83a5..9924ebc 100644
+--- a/tests/auto/restart/server/main.cpp
++++ b/tests/auto/restart/server/main.cpp
+@@ -57,7 +57,7 @@ private Q_SLOTS:
+ 
+         qDebug() << "Waiting for incoming connections";
+ 
+-        QSignalSpy waitForStartedSpy(&myTestServer, SIGNAL(startedChanged(bool)));
++        QSignalSpy waitForStartedSpy(&myTestServer, &MyTestServer::startedChanged);
+         QVERIFY(waitForStartedSpy.isValid());
+         QVERIFY(waitForStartedSpy.wait());
+         QCOMPARE(waitForStartedSpy.value(0).value(0).toBool(), true);
+diff --git a/tests/auto/shared/model_utilities.h b/tests/auto/shared/model_utilities.h
+index ab71d15..207d601 100644
+--- a/tests/auto/shared/model_utilities.h
++++ b/tests/auto/shared/model_utilities.h
+@@ -29,6 +29,48 @@
+ #include <QtTest/QtTest>
+ #include <QModelIndex>
+ 
++// Helper class which can be used by tests for starting a task and
++// waiting for its completion. It takes care of running an event
++// loop while waiting, until finished() method is called (or the
++// timeout is reached).
++class WaitHelper : public QObject
++{
++    Q_OBJECT
++
++public:
++    WaitHelper() { m_promise.reportStarted(); }
++
++    ~WaitHelper()
++    {
++        if (m_promise.future().isRunning())
++            m_promise.reportFinished();
++    }
++
++    /*
++        Starts an event loop and waits until finish() method is called
++        or the timeout is reached.
++    */
++    bool wait(int timeout = 30000)
++    {
++        if (m_promise.future().isFinished())
++            return true;
++
++        QFutureWatcher<void> watcher;
++        QSignalSpy watcherSpy(&watcher, &QFutureWatcher<void>::finished);
++        watcher.setFuture(m_promise.future());
++        return watcherSpy.wait(timeout);
++    }
++
++protected:
++    /*
++        The derived classes need to call this method to stop waiting.
++    */
++    void finish() { m_promise.reportFinished(); }
++
++private:
++    QFutureInterface<void> m_promise;
++};
++
+ namespace {
+ 
+ inline bool compareIndices(const QModelIndex &lhs, const QModelIndex &rhs)
+@@ -44,53 +86,20 @@ inline bool compareIndices(const QModelIndex &lhs, const QModelIndex &rhs)
+     return true;
+ }
+ 
+-struct WaitForDataChanged
++struct WaitForDataChanged : public WaitHelper
+ {
+-    struct IndexPair
++    WaitForDataChanged(const QAbstractItemModel *model, const QVector<QModelIndex> &pending)
++        : WaitHelper(), m_model(model), m_pending(pending)
+     {
+-        QModelIndex topLeft;
+-        QModelIndex bottomRight;
+-    };
++        connect(m_model, &QAbstractItemModel::dataChanged, this,
++                [this](const QModelIndex &topLeft, const QModelIndex &bottomRight,
++                       const QVector<int> &roles) {
++                    Q_UNUSED(roles)
+ 
+-    WaitForDataChanged(const QVector<QModelIndex> &pending, QSignalSpy *spy) : m_pending(pending), m_spy(spy){}
+-    bool wait()
+-    {
+-        Q_ASSERT(m_spy);
+-        const int maxRuns = std::min(m_pending.size(), 100);
+-        int runs = 0;
+-        bool cancel = false;
+-        while (!cancel) {
+-            const int numSignals = m_spy->size();
+-            for (int i = 0; i < numSignals; ++i) {
+-                const QList<QVariant> &signal = m_spy->takeFirst();
+-                IndexPair pair = extractPair(signal);
+-                checkAndRemoveRange(pair.topLeft, pair.bottomRight);
+-                cancel = m_pending.isEmpty();
+-            }
+-            if (!cancel)
+-                m_spy->wait();
+-            ++runs;
+-            if (runs >= maxRuns)
+-                cancel = true;
+-        }
+-        return runs < maxRuns;
+-    }
+-
+-    static IndexPair extractPair(const QList<QVariant> &signal)
+-    {
+-        IndexPair pair;
+-        if (signal.size() != 3)
+-            return pair;
+-        const bool matchingTypes = signal[0].type() == QVariant::nameToType("QModelIndex")
+-                                   && signal[1].type() == QVariant::nameToType("QModelIndex")
+-                                   && signal[2].type() == QVariant::nameToType("QVector<int>");
+-        if (!matchingTypes)
+-            return pair;
+-        const QModelIndex topLeft = signal[0].value<QModelIndex>();
+-        const QModelIndex bottomRight = signal[1].value<QModelIndex>();
+-        pair.topLeft = topLeft;
+-        pair.bottomRight = bottomRight;
+-        return pair;
++                    checkAndRemoveRange(topLeft, bottomRight);
++                    if (m_pending.isEmpty())
++                        finish();
++                });
+     }
+ 
+     void checkAndRemoveRange(const QModelIndex &topLeft, const QModelIndex &bottomRight)
+@@ -111,8 +120,9 @@ struct WaitForDataChanged
+                         m_pending.end());
+     }
+ 
++private:
++    const QAbstractItemModel *m_model = nullptr;
+     QVector<QModelIndex> m_pending;
+-    QSignalSpy *m_spy;
+ };
+ 
+ } // namespace

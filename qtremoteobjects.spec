@@ -4,7 +4,7 @@
 #
 Name     : qtremoteobjects
 Version  : 5.15.2
-Release  : 28
+Release  : 29
 URL      : https://download.qt.io/official_releases/qt/5.15/5.15.2/submodules/qtremoteobjects-everywhere-src-5.15.2.tar.xz
 Source0  : https://download.qt.io/official_releases/qt/5.15/5.15.2/submodules/qtremoteobjects-everywhere-src-5.15.2.tar.xz
 Summary  : No detailed summary available
@@ -79,7 +79,7 @@ test -r config.log && cat config.log
 make  %{?_smp_mflags}
 
 %install
-export SOURCE_DATE_EPOCH=1646410602
+export SOURCE_DATE_EPOCH=1652678148
 rm -rf %{buildroot}
 mkdir -p %{buildroot}/usr/share/package-licenses/qtremoteobjects
 cp %{_builddir}/qtremoteobjects-everywhere-src-5.15.2/LICENSE.GPL2 %{buildroot}/usr/share/package-licenses/qtremoteobjects/4cc77b90af91e615a64ae04893fdffa7939db84c
@@ -238,6 +238,7 @@ cp %{_builddir}/qtremoteobjects-everywhere-src-5.15.2/tools/repc/moc_copy/util/l
 /usr/share/qt5/examples/remoteobjects/ssl/sslserver/cert/cert.qrc
 /usr/share/qt5/examples/remoteobjects/ssl/sslserver/cert/client.crt
 /usr/share/qt5/examples/remoteobjects/ssl/sslserver/cert/client.key
+/usr/share/qt5/examples/remoteobjects/ssl/sslserver/cert/readme
 /usr/share/qt5/examples/remoteobjects/ssl/sslserver/cert/rootCA.key
 /usr/share/qt5/examples/remoteobjects/ssl/sslserver/cert/rootCA.pem
 /usr/share/qt5/examples/remoteobjects/ssl/sslserver/cert/rootCA.srl
