@@ -1,3 +1,6 @@
+Andy Shaw (1):
+      Update the replica when the layoutChanged signal is emitted
+
 Antti Kokko (1):
       Add changes file for Qt 5.15.2
 
@@ -29,10 +32,12 @@ Sona Kurazyan (11):
       Fix an error in TestModelView::testDataRemoval test
       Simplify the FetchData test-helper class
 
-Tarja Sundqvist (3):
+Tarja Sundqvist (5):
       Update commercial license headers
       Revert "Update commercial license headers"
+      Bump version
       Merge remote-tracking branch 'origin/tqtc/lts-5.15.4' into tqtc/lts-5.15-opensource
+      Merge remote-tracking branch 'origin/tqtc/lts-5.15.5' into tqtc/lts-5.15-opensource
 
 diff --git a/examples/remoteobjects/cppclient/main.cpp b/examples/remoteobjects/cppclient/main.cpp
 index 96bcc46..08e36b6 100644
@@ -891,10 +896,10 @@ index 0742eb5..1dc6cfc 100644
  }
  
 diff --git a/src/remoteobjects/qremoteobjectabstractitemmodeladapter.cpp b/src/remoteobjects/qremoteobjectabstractitemmodeladapter.cpp
-index a7c9be0..4e6995f 100644
+index a7c9be0..a401bd5 100644
 --- a/src/remoteobjects/qremoteobjectabstractitemmodeladapter.cpp
 +++ b/src/remoteobjects/qremoteobjectabstractitemmodeladapter.cpp
-@@ -74,13 +74,13 @@ QAbstractItemModelSourceAdapter::QAbstractItemModelSourceAdapter(QAbstractItemMo
+@@ -74,13 +74,14 @@ QAbstractItemModelSourceAdapter::QAbstractItemModelSourceAdapter(QAbstractItemMo
  {
      QAbstractItemModelSourceAdapter::registerTypes();
      m_selectionModel = sel;
@@ -908,13 +913,14 @@ index a7c9be0..4e6995f 100644
 +    connect(m_model, &QAbstractItemModel::columnsInserted, this, &QAbstractItemModelSourceAdapter::sourceColumnsInserted);
 +    connect(m_model, &QAbstractItemModel::rowsRemoved, this, &QAbstractItemModelSourceAdapter::sourceRowsRemoved);
 +    connect(m_model, &QAbstractItemModel::rowsMoved, this, &QAbstractItemModelSourceAdapter::sourceRowsMoved);
++    connect(m_model, &QAbstractItemModel::layoutChanged, this, &QAbstractItemModelSourceAdapter::sourceLayoutChanged);
      if (m_selectionModel)
 -        connect(m_selectionModel, SIGNAL(currentChanged(QModelIndex,QModelIndex)), this, SLOT(sourceCurrentChanged(QModelIndex,QModelIndex)));
 +        connect(m_selectionModel, &QItemSelectionModel::currentChanged, this, &QAbstractItemModelSourceAdapter::sourceCurrentChanged);
  }
  
  void QAbstractItemModelSourceAdapter::registerTypes()
-@@ -177,7 +177,7 @@ MetaAndDataEntries QAbstractItemModelSourceAdapter::replicaCacheRequest(size_t s
+@@ -177,7 +178,7 @@ MetaAndDataEntries QAbstractItemModelSourceAdapter::replicaCacheRequest(size_t s
  {
      MetaAndDataEntries res;
      res.roles = roles.isEmpty() ? m_availableRoles : roles;
@@ -923,6 +929,166 @@ index a7c9be0..4e6995f 100644
      const int rowCount = m_model->rowCount(QModelIndex{});
      const int columnCount = m_model->columnCount(QModelIndex{});
      res.size = QSize{columnCount, rowCount};
+@@ -248,6 +249,14 @@ void QAbstractItemModelSourceAdapter::sourceCurrentChanged(const QModelIndex & c
+     emit currentChanged(currentIndex, previousIndex);
+ }
+ 
++void QAbstractItemModelSourceAdapter::sourceLayoutChanged(const QList<QPersistentModelIndex> &parents, QAbstractItemModel::LayoutChangeHint hint)
++{
++    IndexList indexes;
++    for (const QPersistentModelIndex &idx : parents)
++        indexes << toModelIndexList((QModelIndex)idx, m_model);
++    emit layoutChanged(indexes, hint);
++}
++
+ QVector<IndexValuePair> QAbstractItemModelSourceAdapter::fetchTree(const QModelIndex &parent, size_t &size, const QVector<int> &roles)
+ {
+     QVector<IndexValuePair> entries;
+diff --git a/src/remoteobjects/qremoteobjectabstractitemmodeladapter_p.h b/src/remoteobjects/qremoteobjectabstractitemmodeladapter_p.h
+index 8eff2c5..05f68b8 100644
+--- a/src/remoteobjects/qremoteobjectabstractitemmodeladapter_p.h
++++ b/src/remoteobjects/qremoteobjectabstractitemmodeladapter_p.h
+@@ -97,7 +97,7 @@ public Q_SLOTS:
+     void sourceRowsRemoved(const QModelIndex & parent, int start, int end);
+     void sourceRowsMoved(const QModelIndex & sourceParent, int sourceRow, int count, const QModelIndex & destinationParent, int destinationChild) const;
+     void sourceCurrentChanged(const QModelIndex & current, const QModelIndex & previous);
+-
++    void sourceLayoutChanged(const QList<QPersistentModelIndex> &parents, QAbstractItemModel::LayoutChangeHint hint);
+ Q_SIGNALS:
+     void availableRolesChanged();
+     void dataChanged(IndexList topLeft, IndexList bottomRight, QVector<int> roles) const;
+@@ -106,6 +106,7 @@ Q_SIGNALS:
+     void rowsMoved(IndexList sourceParent, int sourceRow, int count, IndexList destinationParent, int destinationChild) const;
+     void currentChanged(IndexList current, IndexList previous);
+     void columnsInserted(IndexList parent, int start, int end) const;
++    void layoutChanged(IndexList parents, QAbstractItemModel::LayoutChangeHint hint);
+ 
+ private:
+     QAbstractItemModelSourceAdapter();
+@@ -128,7 +129,7 @@ struct QAbstractItemAdapterSourceAPI : public SourceApiMap
+         m_properties[0] = 2;
+         m_properties[1] = QtPrivate::qtro_property_index<AdapterType>(&AdapterType::availableRoles, static_cast<QVector<int> (QObject::*)()>(0),"availableRoles");
+         m_properties[2] = QtPrivate::qtro_property_index<AdapterType>(&AdapterType::roleNames, static_cast<QIntHash (QObject::*)()>(0),"roleNames");
+-        m_signals[0] = 9;
++        m_signals[0] = 10;
+         m_signals[1] = QtPrivate::qtro_signal_index<AdapterType>(&AdapterType::availableRolesChanged, static_cast<void (QObject::*)()>(0),m_signalArgCount+0,&m_signalArgTypes[0]);
+         m_signals[2] = QtPrivate::qtro_signal_index<AdapterType>(&AdapterType::dataChanged, static_cast<void (QObject::*)(IndexList,IndexList,QVector<int>)>(0),m_signalArgCount+1,&m_signalArgTypes[1]);
+         m_signals[3] = QtPrivate::qtro_signal_index<AdapterType>(&AdapterType::rowsInserted, static_cast<void (QObject::*)(IndexList,int,int)>(0),m_signalArgCount+2,&m_signalArgTypes[2]);
+@@ -138,6 +139,7 @@ struct QAbstractItemAdapterSourceAPI : public SourceApiMap
+         m_signals[7] = QtPrivate::qtro_signal_index<ObjectType>(&ObjectType::modelReset, static_cast<void (QObject::*)()>(0),m_signalArgCount+6,&m_signalArgTypes[6]);
+         m_signals[8] = QtPrivate::qtro_signal_index<ObjectType>(&ObjectType::headerDataChanged, static_cast<void (QObject::*)(Qt::Orientation,int,int)>(0),m_signalArgCount+7,&m_signalArgTypes[7]);
+         m_signals[9] = QtPrivate::qtro_signal_index<AdapterType>(&AdapterType::columnsInserted, static_cast<void (QObject::*)(IndexList,int,int)>(0),m_signalArgCount+8,&m_signalArgTypes[8]);
++        m_signals[10] = QtPrivate::qtro_signal_index<AdapterType>(&AdapterType::layoutChanged, static_cast<void (QObject::*)(IndexList,QAbstractItemModel::LayoutChangeHint)>(nullptr),m_signalArgCount+9,&m_signalArgTypes[9]);
+         m_methods[0] = 6;
+         m_methods[1] = QtPrivate::qtro_method_index<AdapterType>(&AdapterType::replicaSizeRequest, static_cast<void (QObject::*)(IndexList)>(0),"replicaSizeRequest(IndexList)",m_methodArgCount+0,&m_methodArgTypes[0]);
+         m_methods[2] = QtPrivate::qtro_method_index<AdapterType>(&AdapterType::replicaRowRequest, static_cast<void (QObject::*)(IndexList,IndexList,QVector<int>)>(0),"replicaRowRequest(IndexList,IndexList,QVector<int>)",m_methodArgCount+1,&m_methodArgTypes[1]);
+@@ -213,6 +215,7 @@ struct QAbstractItemAdapterSourceAPI : public SourceApiMap
+         case 6: return QByteArrayLiteral("resetModel()");
+         case 7: return QByteArrayLiteral("headerDataChanged(Qt::Orientation,int,int)");
+         case 8: return QByteArrayLiteral("columnsInserted(IndexList,int,int)");
++        case 9: return QByteArrayLiteral("layoutChanged(IndexList,QAbstractItemModel::LayoutChangeHint)");
+         }
+         return QByteArrayLiteral("");
+     }
+@@ -264,6 +267,7 @@ struct QAbstractItemAdapterSourceAPI : public SourceApiMap
+         case 4:
+         case 5:
+         case 8:
++        case 9:
+             return true;
+         }
+         return false;
+@@ -292,10 +296,10 @@ struct QAbstractItemAdapterSourceAPI : public SourceApiMap
+     }
+ 
+     int m_properties[3];
+-    int m_signals[10];
++    int m_signals[11];
+     int m_methods[7];
+-    int m_signalArgCount[9];
+-    const int* m_signalArgTypes[9];
++    int m_signalArgCount[10];
++    const int* m_signalArgTypes[10];
+     int m_methodArgCount[6];
+     const int* m_methodArgTypes[6];
+     QString m_name;
+diff --git a/src/remoteobjects/qremoteobjectabstractitemmodelreplica.cpp b/src/remoteobjects/qremoteobjectabstractitemmodelreplica.cpp
+index 27851c8..cfcaf3c 100644
+--- a/src/remoteobjects/qremoteobjectabstractitemmodelreplica.cpp
++++ b/src/remoteobjects/qremoteobjectabstractitemmodelreplica.cpp
+@@ -141,6 +141,8 @@ void QAbstractItemModelReplicaImplementation::initializeModelConnections()
+     connect(this, &QAbstractItemModelReplicaImplementation::currentChanged, this, &QAbstractItemModelReplicaImplementation::onCurrentChanged);
+     connect(this, &QAbstractItemModelReplicaImplementation::modelReset, this, &QAbstractItemModelReplicaImplementation::onModelReset);
+     connect(this, &QAbstractItemModelReplicaImplementation::headerDataChanged, this, &QAbstractItemModelReplicaImplementation::onHeaderDataChanged);
++    connect(this, &QAbstractItemModelReplicaImplementation::layoutChanged, this, &QAbstractItemModelReplicaImplementation::onLayoutChanged);
++
+ }
+ 
+ inline void removeIndexFromRow(const QModelIndex &index, const QVector<int> &roles, CachedRowEntry *entry)
+@@ -693,6 +695,41 @@ void QAbstractItemModelReplicaImplementation::fetchPendingHeaderData()
+     m_pendingRequests.push_back(watcher);
+ }
+ 
++void QAbstractItemModelReplicaImplementation::onLayoutChanged(const IndexList &parents,
++                                                              QAbstractItemModel::LayoutChangeHint hint)
++{
++    QList<QPersistentModelIndex> indexes;
++    for (const ModelIndex &parent : qAsConst(parents)) {
++        const QModelIndex parentIndex = toQModelIndex(IndexList{parent}, q);
++        indexes << QPersistentModelIndex(parentIndex);
++    }
++    QRemoteObjectPendingCallWatcher *watcher;
++    auto call = replicaCacheRequest(m_rootItem.children.cacheSize, m_initialFetchRolesHint);
++    watcher = new QRemoteObjectPendingCallWatcher(call);
++    m_pendingRequests.push_back(watcher);
++    connect(watcher, &QRemoteObjectPendingCallWatcher::finished, this, [this, watcher, indexes, hint]() {
++        Q_ASSERT(watcher->returnValue().canConvert<MetaAndDataEntries>());
++        const QSize size = watcher->returnValue().value<MetaAndDataEntries>().size;
++
++        q->layoutAboutToBeChanged(indexes, hint);
++        m_rootItem.clear();
++        if (size.height() > 0) {
++            m_rootItem.rowCount = size.height();
++            m_rootItem.hasChildren = true;
++        }
++
++        m_rootItem.columnCount = size.width();
++        if (m_initialAction == QtRemoteObjects::PrefetchData) {
++            auto entries = watcher->returnValue().value<MetaAndDataEntries>();
++            for (int i = 0; i < entries.data.size(); ++i)
++                fillCache(entries.data[i], entries.roles);
++        }
++        m_pendingRequests.removeAll(watcher);
++        watcher->deleteLater();
++        emit q->layoutChanged(indexes, hint);
++    });
++}
++
+ static inline QVector<QPair<int, int> > listRanges(const QVector<int> &list)
+ {
+     QVector<QPair<int, int> > result;
+diff --git a/src/remoteobjects/qremoteobjectabstractitemmodelreplica_p.h b/src/remoteobjects/qremoteobjectabstractitemmodelreplica_p.h
+index 8f13091..bfa3c45 100644
+--- a/src/remoteobjects/qremoteobjectabstractitemmodelreplica_p.h
++++ b/src/remoteobjects/qremoteobjectabstractitemmodelreplica_p.h
+@@ -360,7 +360,7 @@ Q_SIGNALS:
+     void modelReset();
+     void headerDataChanged(Qt::Orientation,int,int);
+     void columnsInserted(IndexList parent, int first, int last);
+-
++    void layoutChanged(IndexList parents, QAbstractItemModel::LayoutChangeHint hint);
+ public Q_SLOTS:
+     QRemoteObjectPendingReply<QSize> replicaSizeRequest(IndexList parentList)
+     {
+@@ -422,7 +422,7 @@ public Q_SLOTS:
+     void handleSizeDone(QRemoteObjectPendingCallWatcher *watcher);
+     void onReplicaCurrentChanged(const QModelIndex &current, const QModelIndex &previous);
+     void fillCache(const IndexValuePair &pair,const QVector<int> &roles);
+-
++    void onLayoutChanged(const IndexList &parents, QAbstractItemModel::LayoutChangeHint hint);
+ public:
+     QScopedPointer<QItemSelectionModel> m_selectionModel;
+     QVector<CacheEntry> m_headerData[2];
 diff --git a/src/remoteobjects/qremoteobjectnode.cpp b/src/remoteobjects/qremoteobjectnode.cpp
 index 3d9a2fc..4b883dc 100644
 --- a/src/remoteobjects/qremoteobjectnode.cpp
@@ -1638,6 +1804,113 @@ index 3dfd0bd..c4e40e8 100644
          QVERIFY(waitForStartedSpy.isValid());
          QVERIFY(waitForStartedSpy.wait());
          QCOMPARE(waitForStartedSpy.value(0).value(0).toBool(), true);
+diff --git a/tests/auto/modelreplica/tst_modelreplicatest.cpp b/tests/auto/modelreplica/tst_modelreplicatest.cpp
+index 40b622e..c3760e0 100644
+--- a/tests/auto/modelreplica/tst_modelreplicatest.cpp
++++ b/tests/auto/modelreplica/tst_modelreplicatest.cpp
+@@ -41,6 +41,10 @@ private Q_SLOTS:
+     void basicFunctions();
+     void basicFunctions_data();
+     void nullModel();
++    void nestedSortFilterProxyModel_data() { basicFunctions_data(); }
++    void nestedSortFilterProxyModel();
++    void sortFilterProxyModel_data();
++    void sortFilterProxyModel();
+ };
+ 
+ void ModelreplicaTest::basicFunctions_data()
+@@ -113,6 +117,91 @@ void ModelreplicaTest::nullModel()
+     QTRY_COMPARE(replica->tracks()->data(replica->tracks()->index(3, 0)), "New Track4");
+ }
+ 
++void ModelreplicaTest::nestedSortFilterProxyModel()
++{
++    QFETCH(bool, templated);
++
++    QRemoteObjectRegistryHost host(QUrl("tcp://localhost:5555"));
++    auto model = new QStringListModel(this);
++    model->setStringList(QStringList() << "CCC" << "AAA" << "BBB");
++    auto proxyModel = new QSortFilterProxyModel(this);
++    proxyModel->setSourceModel(model);
++
++    MediaSimpleSource source;
++    source.setTracks(proxyModel);
++    if (templated)
++        host.enableRemoting<MediaSourceAPI>(&source);
++    else
++        host.enableRemoting(&source);
++
++    QRemoteObjectNode client(QUrl("tcp://localhost:5555"));
++    const QScopedPointer<MediaReplica> replica(client.acquire<MediaReplica>());
++    QSignalSpy tracksSpy(replica->tracks(), &QAbstractItemModelReplica::initialized);
++    QVERIFY(replica->waitForSource(300));
++    QVERIFY(tracksSpy.wait());
++    // Rep file only uses display role
++    QCOMPARE(QVector<int>{Qt::DisplayRole}, replica->tracks()->availableRoles());
++
++    QCOMPARE(proxyModel->rowCount(), replica->tracks()->rowCount());
++    for (int i = 0; i < replica->tracks()->rowCount(); i++) {
++        // We haven't received any data yet
++        QCOMPARE(QVariant(), replica->tracks()->data(replica->tracks()->index(i, 0)));
++    }
++
++    // Wait for data to be fetch and confirm
++    QCOMPARE(proxyModel->rowCount(), replica->tracks()->rowCount());
++    for (int i = 0; i < replica->tracks()->rowCount(); i++)
++        QTRY_COMPARE(proxyModel->data(proxyModel->index(i, 0), Qt::DisplayRole), replica->tracks()->data(replica->tracks()->index(i, 0)));
++
++    proxyModel->sort(0, Qt::AscendingOrder);
++    QCOMPARE(proxyModel->rowCount(), replica->tracks()->rowCount());
++    for (int i = 0; i < replica->tracks()->rowCount(); i++)
++        QTRY_COMPARE(proxyModel->data(proxyModel->index(i, 0), Qt::DisplayRole), replica->tracks()->data(replica->tracks()->index(i, 0)));
++}
++
++void ModelreplicaTest::sortFilterProxyModel_data()
++{
++    QTest::addColumn<bool>("prefetch");
++
++    QTest::newRow("size only") << false;
++    QTest::newRow("prefetch") << true;
++}
++
++void ModelreplicaTest::sortFilterProxyModel()
++{
++    QFETCH(bool, prefetch);
++
++    QRemoteObjectRegistryHost host(QUrl("tcp://localhost:5555"));
++    auto model = new QStringListModel(this);
++    model->setStringList(QStringList() << "CCC" << "AAA" << "BBB");
++    auto proxyModel = new QSortFilterProxyModel(this);
++    proxyModel->setSourceModel(model);
++
++    QVector<int> roles = { Qt::DisplayRole };
++    host.enableRemoting(proxyModel, "test", roles);
++
++    auto fetchMode = prefetch ? QtRemoteObjects::PrefetchData : QtRemoteObjects::FetchRootSize;
++    QRemoteObjectNode client(QUrl("tcp://localhost:5555"));
++    QScopedPointer<QAbstractItemModelReplica> replica(client.acquireModel("test", fetchMode));
++    QSignalSpy initSpy(replica.get(), &QAbstractItemModelReplica::initialized);
++    QVERIFY(initSpy.wait());
++
++    QCOMPARE(roles, replica->availableRoles());
++
++    // Wait for data to be fetch and confirm
++    QCOMPARE(proxyModel->rowCount(), replica->rowCount());
++    for (int i = 0; i < replica->rowCount(); i++)
++        QTRY_COMPARE(proxyModel->data(proxyModel->index(i, 0), Qt::DisplayRole),
++                     replica->data(replica->index(i, 0)));
++
++    proxyModel->sort(0, Qt::AscendingOrder);
++    QCOMPARE(proxyModel->rowCount(), replica->rowCount());
++
++    for (int i = 0; i < replica->rowCount(); i++)
++        QTRY_COMPARE(proxyModel->data(proxyModel->index(i, 0), Qt::DisplayRole),
++                     replica->data(replica->index(i, 0)));
++}
++
+ QTEST_MAIN(ModelreplicaTest)
+ 
+ #include "tst_modelreplicatest.moc"
 diff --git a/tests/auto/modelview/modelview.pro b/tests/auto/modelview/modelview.pro
 index 6d94fff..c6cafbb 100644
 --- a/tests/auto/modelview/modelview.pro
