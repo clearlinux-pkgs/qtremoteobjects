@@ -4,13 +4,19 @@ Andy Shaw (1):
 Antti Kokko (1):
       Add changes file for Qt 5.15.2
 
-Brett Stottlemyer (2):
+Brett Stottlemyer (5):
       Attempt to fix flaky test
       ExternalIODevice fixes
+      Fix "Failed to create a timer" issue on Windows
+      Remove dead code in qt_metacall()
+      Remove dead code in serializeDefinition()
 
 Jani Heikkinen (2):
       Bump version
       Bump version
+
+Joerg Bornemann (1):
+      CMake: Don't claim we have qt6_generate_repc in Qt6
 
 Michael Brasser (1):
       Improve stability of tst_proxy
@@ -32,12 +38,14 @@ Sona Kurazyan (11):
       Fix an error in TestModelView::testDataRemoval test
       Simplify the FetchData test-helper class
 
-Tarja Sundqvist (5):
+Tarja Sundqvist (7):
       Update commercial license headers
       Revert "Update commercial license headers"
       Bump version
+      Bump version
       Merge remote-tracking branch 'origin/tqtc/lts-5.15.4' into tqtc/lts-5.15-opensource
       Merge remote-tracking branch 'origin/tqtc/lts-5.15.5' into tqtc/lts-5.15-opensource
+      Merge remote-tracking branch 'origin/tqtc/lts-5.15.6' into tqtc/lts-5.15-opensource
 
 diff --git a/examples/remoteobjects/cppclient/main.cpp b/examples/remoteobjects/cppclient/main.cpp
 index 96bcc46..08e36b6 100644
@@ -828,6 +836,20 @@ index 26bbc02..f6a4330 100644
  
      return app.exec();
  }
+diff --git a/src/remoteobjects/Qt5RemoteObjectsMacros.cmake b/src/remoteobjects/Qt5RemoteObjectsMacros.cmake
+index 4c65037..c5ee12e 100644
+--- a/src/remoteobjects/Qt5RemoteObjectsMacros.cmake
++++ b/src/remoteobjects/Qt5RemoteObjectsMacros.cmake
+@@ -105,7 +105,8 @@ if(NOT QT_NO_CREATE_VERSIONLESS_FUNCTIONS)
+         if(QT_DEFAULT_MAJOR_VERSION EQUAL 5)
+             qt5_generate_repc("${outfiles}" ${ARGN})
+         elseif(QT_DEFAULT_MAJOR_VERSION EQUAL 6)
+-            qt6_generate_repc("${outfiles}" ${ARGN})
++            message(FATAL_ERROR "qt_generate_repc is not available in Qt6. "
++                "See the Qt6 documentation for replacements.")
+         endif()
+         set("${outfiles}" "${${outfiles}}" PARENT_SCOPE)
+     endfunction()
 diff --git a/src/remoteobjects/doc/snippets/cmake-macros/simpleswitch.cpp b/src/remoteobjects/doc/snippets/cmake-macros/simpleswitch.cpp
 index a5ab3e0..7ee8e57 100644
 --- a/src/remoteobjects/doc/snippets/cmake-macros/simpleswitch.cpp
@@ -1089,6 +1111,32 @@ index 8f13091..bfa3c45 100644
  public:
      QScopedPointer<QItemSelectionModel> m_selectionModel;
      QVector<CacheEntry> m_headerData[2];
+diff --git a/src/remoteobjects/qremoteobjectdynamicreplica.cpp b/src/remoteobjects/qremoteobjectdynamicreplica.cpp
+index a004593..616c3ca 100644
+--- a/src/remoteobjects/qremoteobjectdynamicreplica.cpp
++++ b/src/remoteobjects/qremoteobjectdynamicreplica.cpp
+@@ -142,7 +142,6 @@ int QRemoteObjectDynamicReplica::qt_metacall(QMetaObject::Call call, int id, voi
+ 
+     if (call == QMetaObject::ReadProperty || call == QMetaObject::WriteProperty) {
+         QMetaProperty mp = metaObject()->property(saved_id);
+-        int &status = *reinterpret_cast<int *>(argv[2]);
+ 
+         if (call == QMetaObject::WriteProperty) {
+             QVariantList args;
+@@ -159,13 +158,6 @@ int QRemoteObjectDynamicReplica::qt_metacall(QMetaObject::Call call, int id, voi
+                 QMetaType::destruct(mp.userType(), argv[0]);
+                 QMetaType::construct(mp.userType(), argv[0], value.data());
+             }
+-            const bool readStatus = true;
+-            // Caller supports QVariant returns? Then we can also report errors
+-            // by storing an invalid variant.
+-            if (!readStatus && argv[1]) {
+-                status = 0;
+-                reinterpret_cast<QVariant*>(argv[1])->clear();
+-            }
+         }
+ 
+         id = -1;
 diff --git a/src/remoteobjects/qremoteobjectnode.cpp b/src/remoteobjects/qremoteobjectnode.cpp
 index 3d9a2fc..4b883dc 100644
 --- a/src/remoteobjects/qremoteobjectnode.cpp
@@ -1139,20 +1187,46 @@ index 3d9a2fc..4b883dc 100644
  QAbstractItemModelReplica *QRemoteObjectNode::acquireModel(const QString &name, QtRemoteObjects::InitialAction action, const QVector<int> &rolesHint)
  {
      QAbstractItemModelReplicaImplementation *rep = acquire<QAbstractItemModelReplicaImplementation>(name);
+diff --git a/src/remoteobjects/qremoteobjectpacket.cpp b/src/remoteobjects/qremoteobjectpacket.cpp
+index d517794..b5be767 100644
+--- a/src/remoteobjects/qremoteobjectpacket.cpp
++++ b/src/remoteobjects/qremoteobjectpacket.cpp
+@@ -480,13 +480,10 @@ void serializeDefinition(QDataStream &ds, const QRemoteObjectSourceBase *source)
+         serializeEnum(ds, enumerator);
+     }
+ 
+-    if (source->d->isDynamic) {
+-        QSet<const QMetaObject *> gadgets;
+-        QSet<QMetaEnum> enums;
+-        recurseForGadgets(gadgets, enums, source);
+-        serializeGadgets(ds, gadgets, enums, source);
+-    } else
+-        ds << quint32(0) << quint32(0); // qtEnums, numGadgets
++    QSet<const QMetaObject *> gadgets;
++    QSet<QMetaEnum> enums;
++    recurseForGadgets(gadgets, enums, source);
++    serializeGadgets(ds, gadgets, enums, source);
+ 
+     const int numSignals = api->signalCount();
+     ds << quint32(numSignals);  //Number of signals
 diff --git a/src/remoteobjects/qremoteobjectreplica.cpp b/src/remoteobjects/qremoteobjectreplica.cpp
-index 04d9ca5..6b2c6cf 100644
+index 04d9ca5..ddfe3ec 100644
 --- a/src/remoteobjects/qremoteobjectreplica.cpp
 +++ b/src/remoteobjects/qremoteobjectreplica.cpp
-@@ -346,7 +346,7 @@ bool QConnectedReplicaImplementation::waitForSource(int timeout)
+@@ -345,8 +345,11 @@ bool QConnectedReplicaImplementation::waitForSource(int timeout)
+                          &loop, QEventLoop::staticMetaObject.indexOfMethod("quit()"),
                           Qt::DirectConnection, nullptr);
  
++    QTimer t; // NB: Related to QTBUG-94570 - don't use QTimer::singleShot here.
      if (timeout >= 0) {
 -        QTimer::singleShot(timeout, &loop, SLOT(quit()));
-+        QTimer::singleShot(timeout, &loop, &QEventLoop::quit);
++        t.setSingleShot(true);
++        connect(&t, &QTimer::timeout, &loop, &QEventLoop::quit);
++        t.start(timeout);
      }
  
      // enter the event loop and wait for a reply
-@@ -437,8 +437,9 @@ bool QConnectedReplicaImplementation::waitForFinished(const QRemoteObjectPending
+@@ -437,8 +440,15 @@ bool QConnectedReplicaImplementation::waitForFinished(const QRemoteObjectPending
      call.d->mutex.unlock();
  
      QEventLoop loop;
@@ -1160,7 +1234,13 @@ index 04d9ca5..6b2c6cf 100644
 -    QTimer::singleShot(timeout, &loop, SLOT(quit()));
 +    loop.connect(call.d->watcherHelper.data(), &QRemoteObjectPendingCallWatcherHelper::finished,
 +                 &loop, &QEventLoop::quit);
-+    QTimer::singleShot(timeout, &loop, &QEventLoop::quit);
++
++    QTimer t; // NB: Related to QTBUG-94570 - don't use QTimer::singleShot here.
++    if (timeout >= 0) {
++        t.setSingleShot(true);
++        connect(&t, &QTimer::timeout, &loop, &QEventLoop::quit);
++        t.start(timeout);
++    }
  
      // enter the event loop and wait for a reply
      loop.exec(QEventLoop::ExcludeUserInputEvents | QEventLoop::WaitForMoreEvents);

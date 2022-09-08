@@ -4,7 +4,7 @@
 #
 Name     : qtremoteobjects
 Version  : 5.15.2
-Release  : 30
+Release  : 31
 URL      : https://download.qt.io/official_releases/qt/5.15/5.15.2/submodules/qtremoteobjects-everywhere-src-5.15.2.tar.xz
 Source0  : https://download.qt.io/official_releases/qt/5.15/5.15.2/submodules/qtremoteobjects-everywhere-src-5.15.2.tar.xz
 Summary  : No detailed summary available
@@ -79,14 +79,14 @@ test -r config.log && cat config.log
 make  %{?_smp_mflags}
 
 %install
-export SOURCE_DATE_EPOCH=1655664985
+export SOURCE_DATE_EPOCH=1662657051
 rm -rf %{buildroot}
 mkdir -p %{buildroot}/usr/share/package-licenses/qtremoteobjects
-cp %{_builddir}/qtremoteobjects-everywhere-src-5.15.2/LICENSE.GPL2 %{buildroot}/usr/share/package-licenses/qtremoteobjects/4cc77b90af91e615a64ae04893fdffa7939db84c
-cp %{_builddir}/qtremoteobjects-everywhere-src-5.15.2/LICENSE.GPL3 %{buildroot}/usr/share/package-licenses/qtremoteobjects/8624bcdae55baeef00cd11d5dfcfa60f68710a02
-cp %{_builddir}/qtremoteobjects-everywhere-src-5.15.2/LICENSE.GPL3-EXCEPT %{buildroot}/usr/share/package-licenses/qtremoteobjects/e93757aefa405f2c9a8a55e780ae9c39542dfc3a
-cp %{_builddir}/qtremoteobjects-everywhere-src-5.15.2/LICENSE.LGPL3 %{buildroot}/usr/share/package-licenses/qtremoteobjects/f45ee1c765646813b442ca58de72e20a64a7ddba
-cp %{_builddir}/qtremoteobjects-everywhere-src-5.15.2/tools/repc/moc_copy/util/licenseheader.txt %{buildroot}/usr/share/package-licenses/qtremoteobjects/b4be9db792cd4bb77ab866ab90d06c4b24a6bcbe
+cp %{_builddir}/qtremoteobjects-everywhere-src-%{version}/LICENSE.GPL2 %{buildroot}/usr/share/package-licenses/qtremoteobjects/4cc77b90af91e615a64ae04893fdffa7939db84c || :
+cp %{_builddir}/qtremoteobjects-everywhere-src-%{version}/LICENSE.GPL3 %{buildroot}/usr/share/package-licenses/qtremoteobjects/8624bcdae55baeef00cd11d5dfcfa60f68710a02 || :
+cp %{_builddir}/qtremoteobjects-everywhere-src-%{version}/LICENSE.GPL3-EXCEPT %{buildroot}/usr/share/package-licenses/qtremoteobjects/e93757aefa405f2c9a8a55e780ae9c39542dfc3a || :
+cp %{_builddir}/qtremoteobjects-everywhere-src-%{version}/LICENSE.LGPL3 %{buildroot}/usr/share/package-licenses/qtremoteobjects/f45ee1c765646813b442ca58de72e20a64a7ddba || :
+cp %{_builddir}/qtremoteobjects-everywhere-src-%{version}/tools/repc/moc_copy/util/licenseheader.txt %{buildroot}/usr/share/package-licenses/qtremoteobjects/b4be9db792cd4bb77ab866ab90d06c4b24a6bcbe || :
 %make_install
 
 %files
