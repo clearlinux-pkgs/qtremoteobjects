@@ -4,7 +4,7 @@
 #
 Name     : qtremoteobjects
 Version  : 5.15.2
-Release  : 31
+Release  : 32
 URL      : https://download.qt.io/official_releases/qt/5.15/5.15.2/submodules/qtremoteobjects-everywhere-src-5.15.2.tar.xz
 Source0  : https://download.qt.io/official_releases/qt/5.15/5.15.2/submodules/qtremoteobjects-everywhere-src-5.15.2.tar.xz
 Summary  : No detailed summary available
@@ -79,7 +79,7 @@ test -r config.log && cat config.log
 make  %{?_smp_mflags}
 
 %install
-export SOURCE_DATE_EPOCH=1662657051
+export SOURCE_DATE_EPOCH=1667236475
 rm -rf %{buildroot}
 mkdir -p %{buildroot}/usr/share/package-licenses/qtremoteobjects
 cp %{_builddir}/qtremoteobjects-everywhere-src-%{version}/LICENSE.GPL2 %{buildroot}/usr/share/package-licenses/qtremoteobjects/4cc77b90af91e615a64ae04893fdffa7939db84c || :

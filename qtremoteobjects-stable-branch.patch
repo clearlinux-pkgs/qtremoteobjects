@@ -18,8 +18,9 @@ Jani Heikkinen (2):
 Joerg Bornemann (1):
       CMake: Don't claim we have qt6_generate_repc in Qt6
 
-Michael Brasser (1):
+Michael Brasser (2):
       Improve stability of tst_proxy
+      Fix crash when remoting QML objects with sub-objects
 
 Mårten Nordheim (2):
       Regenerate certificates to match new macOS 10.15 restrictions
@@ -38,14 +39,16 @@ Sona Kurazyan (11):
       Fix an error in TestModelView::testDataRemoval test
       Simplify the FetchData test-helper class
 
-Tarja Sundqvist (7):
+Tarja Sundqvist (9):
       Update commercial license headers
       Revert "Update commercial license headers"
+      Bump version
       Bump version
       Bump version
       Merge remote-tracking branch 'origin/tqtc/lts-5.15.4' into tqtc/lts-5.15-opensource
       Merge remote-tracking branch 'origin/tqtc/lts-5.15.5' into tqtc/lts-5.15-opensource
       Merge remote-tracking branch 'origin/tqtc/lts-5.15.6' into tqtc/lts-5.15-opensource
+      Merge remote-tracking branch 'origin/tqtc/lts-5.15.7' into tqtc/lts-5.15-opensource
 
 diff --git a/examples/remoteobjects/cppclient/main.cpp b/examples/remoteobjects/cppclient/main.cpp
 index 96bcc46..08e36b6 100644
@@ -1244,6 +1247,81 @@ index 04d9ca5..ddfe3ec 100644
  
      // enter the event loop and wait for a reply
      loop.exec(QEventLoop::ExcludeUserInputEvents | QEventLoop::WaitForMoreEvents);
+diff --git a/src/remoteobjects/qremoteobjectsource.cpp b/src/remoteobjects/qremoteobjectsource.cpp
+index 49f1e1d..a16884c 100644
+--- a/src/remoteobjects/qremoteobjectsource.cpp
++++ b/src/remoteobjects/qremoteobjectsource.cpp
+@@ -113,7 +113,10 @@ QRemoteObjectSourceBase::QRemoteObjectSourceBase(QObject *obj, Private *d, const
+             if (QMetaType::typeFlags(property.userType()).testFlag(QMetaType::PointerToQObject)) {
+                 auto propertyMeta = QMetaType::metaObjectForType(property.userType());
+                 QObject *child = property.read(m_object).value<QObject *>();
+-                if (propertyMeta->inherits(&QAbstractItemModel::staticMetaObject)) {
++                const QMetaObject *meta = child ? child->metaObject() : propertyMeta;
++                if (!meta)
++                    continue;
++                if (meta->inherits(&QAbstractItemModel::staticMetaObject)) {
+                     const auto modelInfo = api->m_models.at(modelIndex++);
+                     QAbstractItemModel *model = qobject_cast<QAbstractItemModel *>(child);
+                     QAbstractItemAdapterSourceAPI<QAbstractItemModel, QAbstractItemModelSourceAdapter> *modelApi =
+@@ -455,13 +458,20 @@ DynamicApiMap::DynamicApiMap(QObject *object, const QMetaObject *metaObject, con
+     const int propCount = metaObject->propertyCount();
+     const int propOffset = metaObject->propertyOffset();
+     m_properties.reserve(propCount-propOffset);
+-    int i = 0;
+-    for (i = propOffset; i < propCount; ++i) {
++    QSet<int> invalidSignals;
++    for (int i = propOffset; i < propCount; ++i) {
+         const QMetaProperty property = metaObject->property(i);
+         if (QMetaType::typeFlags(property.userType()).testFlag(QMetaType::PointerToQObject)) {
+             auto propertyMeta = QMetaType::metaObjectForType(property.userType());
+             QObject *child = property.read(object).value<QObject *>();
+-            if (propertyMeta->inherits(&QAbstractItemModel::staticMetaObject)) {
++            const QMetaObject *meta = child ? child->metaObject() : propertyMeta;
++            if (!meta) {
++                const int notifyIndex = metaObject->property(i).notifySignalIndex();
++                if (notifyIndex != -1)
++                    invalidSignals << notifyIndex;
++                continue;
++            }
++            if (meta->inherits(&QAbstractItemModel::staticMetaObject)) {
+                 const QByteArray name = QByteArray::fromRawData(property.name(),
+                                                                 qstrlen(property.name()));
+                 const QByteArray infoName = name.toUpper() + QByteArrayLiteral("_ROLES");
+@@ -475,12 +485,15 @@ DynamicApiMap::DynamicApiMap(QObject *object, const QMetaObject *metaObject, con
+                                        QString::fromLatin1(property.name()),
+                                        roleInfo});
+             } else {
+-                const QMetaObject *meta = child ? child->metaObject() : propertyMeta;
+                 QString typeName = QtRemoteObjects::getTypeNameAndMetaobjectFromClassInfo(meta);
+                 if (typeName.isNull()) {
+-                    typeName = QString::fromLatin1(propertyMeta->className());
++                    typeName = QString::fromLatin1(meta->className());
++                    if (typeName.contains(QLatin1String("QQuick")))
++                        typeName.remove(QLatin1String("QQuick"));
++                    else if (int index = typeName.indexOf(QLatin1String("_QMLTYPE_")))
++                        typeName.truncate(index);
+                     // TODO better way to ensure we have consistent typenames between source/replicas?
+-                    if (typeName.endsWith(QLatin1String("Source")))
++                    else if (typeName.endsWith(QLatin1String("Source")))
+                         typeName.chop(6);
+                 }
+ 
+@@ -499,11 +512,13 @@ DynamicApiMap::DynamicApiMap(QObject *object, const QMetaObject *metaObject, con
+     }
+     const int methodCount = metaObject->methodCount();
+     const int methodOffset = metaObject->methodOffset();
+-    for (i = methodOffset; i < methodCount; ++i) {
++    for (int i = methodOffset; i < methodCount; ++i) {
+         const QMetaMethod mm = metaObject->method(i);
+         const QMetaMethod::MethodType m = mm.methodType();
+         if (m == QMetaMethod::Signal) {
+-            if (m_signals.indexOf(i) >= 0) //Already added as a property notifier
++            if (m_signals.indexOf(i) >= 0)  // Already added as a property notifier
++                continue;
++            if (invalidSignals.contains(i)) // QObject with no metatype
+                 continue;
+             m_signals << i;
+         } else if (m == QMetaMethod::Slot || m == QMetaMethod::Method)
 diff --git a/src/remoteobjects/qtremoteobjectglobal.cpp b/src/remoteobjects/qtremoteobjectglobal.cpp
 index dc39fe6..340620e 100644
 --- a/src/remoteobjects/qtremoteobjectglobal.cpp
@@ -2856,6 +2934,60 @@ index 04682bc..99cf8c4 100644
          QVERIFY(waitForStartedSpy.isValid());
          QVERIFY(waitForStartedSpy.wait());
          QCOMPARE(waitForStartedSpy.value(0).value(0).toBool(), true);
+diff --git a/tests/auto/qml/usertypes/data/MyType.qml b/tests/auto/qml/usertypes/data/MyType.qml
+new file mode 100644
+index 0000000..7061c2c
+--- /dev/null
++++ b/tests/auto/qml/usertypes/data/MyType.qml
+@@ -0,0 +1,5 @@
++import QtQuick 2.0
++
++QtObject {
++    property int value: 39
++}
+diff --git a/tests/auto/qml/usertypes/data/composite.qml b/tests/auto/qml/usertypes/data/composite.qml
+new file mode 100644
+index 0000000..b8defd3
+--- /dev/null
++++ b/tests/auto/qml/usertypes/data/composite.qml
+@@ -0,0 +1,7 @@
++import QtQuick 2.0
++
++QtObject {
++    property QtObject myTypeOk: MyType {} // this works
++    property MyType myType: MyType {} // this crashes
++    property MyType myType2 // this crashes (ensure solution works with null object)
++}
+diff --git a/tests/auto/qml/usertypes/tst_usertypes.cpp b/tests/auto/qml/usertypes/tst_usertypes.cpp
+index 355d545..4c25153 100644
+--- a/tests/auto/qml/usertypes/tst_usertypes.cpp
++++ b/tests/auto/qml/usertypes/tst_usertypes.cpp
+@@ -65,6 +65,7 @@ private Q_SLOTS:
+     void watcherInQml();
+     void hostInQml();
+     void twoReplicas();
++    void remoteCompositeType();
+ };
+ 
+ tst_usertypes::tst_usertypes()
+@@ -293,6 +294,17 @@ void tst_usertypes::twoReplicas()
+     QTRY_COMPARE_WITH_TIMEOUT(obj->property("result2").value<int>(), 7, 500);
+ }
+ 
++void tst_usertypes::remoteCompositeType()
++{
++    QQmlEngine e;
++    QQmlComponent c(&e, SRCDIR "data/composite.qml");
++    QScopedPointer<QObject> obj(c.create());
++    QVERIFY(obj);
++
++    QRemoteObjectRegistryHost host(QUrl("local:remoteCompositeType"));
++    host.enableRemoting(obj.data(), "composite");
++}
++
+ QTEST_MAIN(tst_usertypes)
+ 
+ #include "tst_usertypes.moc"
 diff --git a/tests/auto/repc/signature/matchAndQuit/main.cpp b/tests/auto/repc/signature/matchAndQuit/main.cpp
 index 25b3241..d7e1764 100644
 --- a/tests/auto/repc/signature/matchAndQuit/main.cpp
